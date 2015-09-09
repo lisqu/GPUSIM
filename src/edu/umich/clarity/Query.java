@@ -19,6 +19,7 @@ public class Query {
 	private boolean finished;
 	private boolean seqconstraint;
 	private float ready_time;	//the ready time of the first unexecuted kernel
+	private int query_id;
 	
 	public Query() {
 		this.start_time = 0.0f;
@@ -103,6 +104,14 @@ public class Query {
 
 	public void setReady_time(float ready_time) {
 		this.ready_time = ready_time;
+	}
+
+	public int getQuery_id() {
+		return query_id;
+	}
+
+	public void setQuery_id(int query_id) {
+		this.query_id = query_id;
 	}
 
 }

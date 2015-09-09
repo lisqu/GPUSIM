@@ -49,9 +49,10 @@ public class MPSSim {
 	private static ArrayList<LinkedList<Query>> finishedQueries;
 	private static ArrayList<Map.Entry<Float, Float>> utilization;
 
-	private static List target_load = null;
-	private static List bg_load=null;
+	private static ArrayList<Integer> target_load = new ArrayList<Integer>();
+	private static ArrayList<Integer> bg_load=new ArrayList<Integer>();
 	
+	private static ArrayList<Integer> query_id = new ArrayList<Integer>();
 	private ArrayList<Query> issuingQueries;
 	private ArrayList<Integer> issueIndicator;
 	private Queue<Kernel> kernelQueue;
@@ -669,6 +670,8 @@ public class MPSSim {
 				 * 10. add the same type of query to the issue list unless the
 				 * query queue is empty for that type of query
 				 */
+				float duration = kernel.getEnd_time() - issuingQueries.get(kernel.getQuery_type()).getStart_time();
+
 				if (kernel.getQuery_type() < targetQueries.size()) {
 					if (!targetQueries.get(kernel.getQuery_type()).isEmpty()) {
 						Query comingQuery = targetQueries.get(
@@ -676,18 +679,30 @@ public class MPSSim {
 						comingQuery.setStart_time(kernel.getEnd_time());
 						issuingQueries.set(kernel.getQuery_type(), comingQuery);
 						issueIndicator.set(kernel.getQuery_type(), 1);
+						
+						comingQuery.setQuery_id(query_id.get(kernel.getQuery_type()));
+						query_id.set(kernel.getQuery_type(), comingQuery.getQuery_id()+1);
+						issuingQueries.get(kernel.getQuery_type()).setReady_time(kernel.getEnd_time());
 					}
 				} else {
 					if (!backgroundQueries.get(
 							kernel.getQuery_type() - targetQueries.size())
 							.isEmpty()) {
+						
 						Query comingQuery = backgroundQueries.get(
 								kernel.getQuery_type() - targetQueries.size())
 								.poll();
 						comingQuery.setStart_time(kernel.getEnd_time());
 						issuingQueries.set(kernel.getQuery_type(), comingQuery);
 						issueIndicator.set(kernel.getQuery_type(), 1);
-						issuingQueries.get(kernel.getQuery_type()).setReady_time(kernel.getEnd_time()+1.0f);
+						
+						comingQuery.setQuery_id(query_id.get(kernel.getQuery_type()));
+						query_id.set(kernel.getQuery_type(), comingQuery.getQuery_id()+1);
+
+//						issuingQueries.get(kernel.getQuery_type()).setReady_time(kernel.getEnd_time()+1.0f);
+						issuingQueries.get(kernel.getQuery_type()).setReady_time(kernel.getEnd_time()+bg_load.get(comingQuery.getQuery_id())-duration);
+//						System.out.println(bg_load.get(comingQuery.getQuery_id())-duration);
+						System.out.println("query id is: "+comingQuery.getQuery_id());
 					}
 				}
 //				if (kernel.getQuery_type() >= targetQueries.size())
@@ -795,10 +810,13 @@ public class MPSSim {
 	}
 
 	private static void read_load(){
+		List target_load_obj=null;
+		List bg_load_obj=null;
+		
 		try {
 			CSVReader reader = new CSVReader(new FileReader(TARGET_LOAD), ',');
 			try {
-				target_load = reader.readAll();
+				target_load_obj = reader.readAll();
 			} catch (IOException e) {
 				// TODO Auto-generated catch block
 				e.printStackTrace();
@@ -811,7 +829,7 @@ public class MPSSim {
 		try {
 			CSVReader reader = new CSVReader(new FileReader(BG_LOAD), ',');
 			try {
-				bg_load = reader.readAll();
+				bg_load_obj = reader.readAll();
 			} catch (IOException e) {
 				// TODO Auto-generated catch block
 				e.printStackTrace();
@@ -820,6 +838,22 @@ public class MPSSim {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
+		
+		for(Object lat: target_load_obj) {
+			String[] target = (String [])lat;
+			for(int i=0;i<target.length; i++) {
+				target_load.add(new Integer(target[i]));
+			}
+		}
+		for(Object lat: bg_load_obj) {
+			String[] target = (String [])lat;
+			for(int i=0;i<target.length; i++) {
+				bg_load.add(new Integer(target[i]));
+			}
+		}
+		
+//		for(int i=0;i<bg_load.size();i++)
+//			System.out.println("i: "+i+", value: "+target_load.get(i).intValue());
 	}
 	
 	/**
@@ -984,6 +1018,7 @@ public class MPSSim {
 					}
 					targetQueryList.offer(targetQuery);
 				}
+				query_id.add(new Integer(0));
 				targetQueries.add(targetQueryList);
 				finishedQueries.add(finishedQueryList);
 			}
@@ -1005,6 +1040,7 @@ public class MPSSim {
 					}
 					backgroundQueryList.offer(backgroundQuery);
 				}
+				query_id.add(new Integer(0));
 				backgroundQueries.add(backgroundQueryList);
 			}
 		}

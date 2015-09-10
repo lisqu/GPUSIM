@@ -39,6 +39,7 @@ public class MPSSim {
 	public static final String PROFILE_PATH = "input/formated/";
 	// the location of simulation configuration
 	public static final String CONFIG_PATH = "input/";
+	public static final String RESULT_PATH = "simulated/";
 
 	public static final String TARGET_LOAD="input/load/target_load.csv";
 	public static final String BG_LOAD="input/load/bg_load.csv";
@@ -46,7 +47,8 @@ public class MPSSim {
 	public static ArrayList<LinkedList<Query>> targetQueries;
 	public static ArrayList<LinkedList<Query>> backgroundQueries;
 
-	private static ArrayList<LinkedList<Query>> finishedQueries;
+	private static ArrayList<LinkedList<Query>> finishedQueries;	//finished query lists
+	
 	private static ArrayList<Map.Entry<Float, Float>> utilization;
 
 	private static ArrayList<Integer> target_load = new ArrayList<Integer>();
@@ -57,6 +59,8 @@ public class MPSSim {
 	private ArrayList<Integer> issueIndicator;
 	private Queue<Kernel> kernelQueue;
 
+	public static float COMPLETE_TIME;	//The complete time of target queries
+	
 	public static int n_bg;
 	public static int n_tg;
 	public static String bg_name;
@@ -129,7 +133,7 @@ public class MPSSim {
 			}
 //			System.out.println(issuingQueries.get(id).getReady_time());
 		}
-		issuingQueries.get(chosen_query).setReady_time(10000000.0f);
+//		issuingQueries.get(chosen_query).setReady_time(10000000.0f);
 //		System.out.println("\n~~~~~~~~~~~~~~~~~~~~~~~~~~~\n");
 		return chosen_query;
 	}
@@ -556,9 +560,14 @@ public class MPSSim {
 						 * 7. set the kernel's start time and end time
 						 */
 						issuingQueries.get(chosen_query).setSeqconstraint(true);
-						kernel.setStart_time(elapse_time-overlapping_time);
+						float st = Math.max(elapse_time-overlapping_time, issuingQueries.get(kernel.getQuery_type()).getReady_time());
+						kernel.setStart_time(st);						
 
-						kernel.setEnd_time(kernel.getDuration() + elapse_time + MPSSim.KERNEL_SLACK);
+//						kernel.setStart_time(elapse_time-overlapping_time);
+//						System.out.println("ready: "+issuingQueries.get(kernel.getQuery_type()).getStart_time()+", start: "+ (elapse_time-overlapping_time) );
+
+						kernel.setEnd_time(kernel.getDuration() + st + MPSSim.KERNEL_SLACK);
+//						kernel.setEnd_time(kernel.getDuration() + elapse_time + MPSSim.KERNEL_SLACK);
 						kernelQueue.offer(kernel);
 //						if(kernel.getQuery_type() >= targetQueries.size() && elapse_time <1000)
 //							System.out.println("Duration: "+kernel.getDuration()+", start: "+kernel.getStart_time()+", end: "+kernel.getEnd_time());
@@ -656,9 +665,9 @@ public class MPSSim {
 				/*
 				 * 8. if the target query, save the finished query to a list
 				 */
-				if (query.getQuery_type() < targetQueries.size()) {
+//				if (query.getQuery_type() < targetQueries.size()) {
 					finishedQueries.get(query.getQuery_type()).add(query);
-				}
+//				}
 				/*
 				 * 9. instead of removing the finished query from the issue list
 				 * mark the indicator of the corresponding issuing slot as
@@ -671,7 +680,8 @@ public class MPSSim {
 				 * query queue is empty for that type of query
 				 */
 				float duration = kernel.getEnd_time() - issuingQueries.get(kernel.getQuery_type()).getStart_time();
-
+//				System.out.println("Duration is: "+ duration+", end is: "+kernel.getEnd_time()+", start is: "+issuingQueries.get(kernel.getQuery_type()).getStart_time());
+				
 				if (kernel.getQuery_type() < targetQueries.size()) {
 					if (!targetQueries.get(kernel.getQuery_type()).isEmpty()) {
 						Query comingQuery = targetQueries.get(
@@ -682,27 +692,34 @@ public class MPSSim {
 						
 						comingQuery.setQuery_id(query_id.get(kernel.getQuery_type()));
 						query_id.set(kernel.getQuery_type(), comingQuery.getQuery_id()+1);
-						issuingQueries.get(kernel.getQuery_type()).setReady_time(kernel.getEnd_time());
+						issuingQueries.get(kernel.getQuery_type()).setReady_time(kernel.getEnd_time()+0.5f);
+						issuingQueries.get(kernel.getQuery_type()).setStart_time(kernel.getEnd_time()+0.5f);
+						
+					} else {
+						COMPLETE_TIME = kernel.getEnd_time();
+						System.out.println("target queries stop at: "+COMPLETE_TIME);
 					}
 				} else {
 					if (!backgroundQueries.get(
 							kernel.getQuery_type() - targetQueries.size())
-							.isEmpty()) {
-						
+							.isEmpty()) {						
 						Query comingQuery = backgroundQueries.get(
 								kernel.getQuery_type() - targetQueries.size())
 								.poll();
-						comingQuery.setStart_time(kernel.getEnd_time());
+//						comingQuery.setStart_time(kernel.getEnd_time());
+						
 						issuingQueries.set(kernel.getQuery_type(), comingQuery);
 						issueIndicator.set(kernel.getQuery_type(), 1);
 						
 						comingQuery.setQuery_id(query_id.get(kernel.getQuery_type()));
 						query_id.set(kernel.getQuery_type(), comingQuery.getQuery_id()+1);
+						
+						issuingQueries.get(kernel.getQuery_type()).setReady_time(kernel.getEnd_time()+1.0f);
+						issuingQueries.get(kernel.getQuery_type()).setStart_time(kernel.getEnd_time()+1.0f);
+//						issuingQueries.get(kernel.getQuery_type()).setReady_time(kernel.getEnd_time()+bg_load.get(comingQuery.getQuery_id())-duration+1.0f);
+//						issuingQueries.get(kernel.getQuery_type()).setStart_time(kernel.getEnd_time()+bg_load.get(comingQuery.getQuery_id())-duration+1.0f);
+//						System.out.println("end time: "+kernel.getEnd_time()+", duration: "+duration+", start: "+ issuingQueries.get(kernel.getQuery_type()).getStart_time());
 
-//						issuingQueries.get(kernel.getQuery_type()).setReady_time(kernel.getEnd_time()+1.0f);
-						issuingQueries.get(kernel.getQuery_type()).setReady_time(kernel.getEnd_time()+bg_load.get(comingQuery.getQuery_id())-duration);
-//						System.out.println(bg_load.get(comingQuery.getQuery_id())-duration);
-						System.out.println("query id is: "+comingQuery.getQuery_id());
 					}
 				}
 //				if (kernel.getQuery_type() >= targetQueries.size())
@@ -793,8 +810,8 @@ public class MPSSim {
 		/*
 		 * manipulate the input
 		 */
-		preprocess("sim.conf");
-		
+//		preprocess("sim.conf");
+		generateTestCase(args[0], args[1], new Integer(args[2]).intValue(), new Integer(args[3]).intValue(), new Integer(args[4]).intValue(), new Integer(args[5]).intValue());
 		read_load();
 		/*
 		 * start to simulate
@@ -806,7 +823,7 @@ public class MPSSim {
 		 * print out statistics about the MPS simulation
 		 */
 		calculate_latency(mps_sim);
-		calculate_utilization(mps_sim);
+//		calculate_utilization(mps_sim);
 	}
 
 	private static void read_load(){
@@ -817,25 +834,24 @@ public class MPSSim {
 			CSVReader reader = new CSVReader(new FileReader(TARGET_LOAD), ',');
 			try {
 				target_load_obj = reader.readAll();
+				reader.close();
 			} catch (IOException e) {
-				// TODO Auto-generated catch block
 				e.printStackTrace();
 			}
 		} catch (FileNotFoundException e) {
-			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
+		
 		
 		try {
 			CSVReader reader = new CSVReader(new FileReader(BG_LOAD), ',');
 			try {
 				bg_load_obj = reader.readAll();
+				reader.close();
 			} catch (IOException e) {
-				// TODO Auto-generated catch block
 				e.printStackTrace();
 			}
 		} catch (FileNotFoundException e) {
-			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
 		
@@ -865,16 +881,16 @@ public class MPSSim {
 		/*
 		 * print out the statistics from the finished query queue, save the
 		 * target query latency distribution into a file
-		 */
-		ArrayList<Float> all_latency = new ArrayList<Float>();
-		
+		 */		
 		float accumulative_latency = 0.0f;
 		float target_endtime = 0.0f;
 
-		for (int i = 0; i < finishedQueries.size(); i++) {
+//		for (int i = 0; i < finishedQueries.size(); i++) {
+		for (int i = 0; i < targetQueries.size(); i++) {
+			ArrayList<Float> all_latency = new ArrayList<Float>();
 			try {
 				BufferedWriter bw = new BufferedWriter(new FileWriter(
-						MPSSim.CONFIG_PATH
+						MPSSim.RESULT_PATH
 								+ "sim-"+finishedQueries.get(i).peek().getQuery_name()
 								+ "-" + n_bg + "-" + bg_name + ".csv"));
 //								+ "+" + n_bg + "+" + bg_name + "+" + schedulingType + ".csv"));				
@@ -902,14 +918,58 @@ public class MPSSim {
 			System.out.println("n_bg is: "+n_bg);
 
 			Collections.sort(all_latency);
-			System.out.println("50%-ile latency is: "+all_latency.get(all_latency.size()/2).floatValue()+", 99%-ile latency is: "+all_latency.get(all_latency.size()*99/100).floatValue());
-//			System.out.println("99%-ile latency is: "+all_latency.get(all_latency.size()*99/100).floatValue());
+			System.out.println(i+", "+all_latency.size()+": 50%-ile latency is: "+all_latency.get(all_latency.size()/2).floatValue()+", 99%-ile latency is: "+all_latency.get(all_latency.size()*99/100).floatValue());
+//			System.out.println("50%-ile latency is: "+all_latency.get(all_latency.size()/2).floatValue()+", 99%-ile latency is: "+all_latency.get(all_latency.size()*99/100).floatValue());
 			/*
 			 * print out the average latency for target queries
 			 */
-			System.out.println("The average latency for the target query: "
-					+ String.format("%.2f", accumulative_latency
-							/ finishedQueries.get(i).size()) + "(ms)");
+//			System.out.println("The average latency for the target query: "
+//					+ String.format("%.2f", accumulative_latency
+//							/ finishedQueries.get(i).size()) + "(ms)");
+		}
+		if(Detail) {
+//calculate latency of background queries		
+		for (int i = targetQueries.size(); i < finishedQueries.size(); i++) {
+			ArrayList<Float> all_latency = new ArrayList<Float>();
+			try {
+				BufferedWriter bw = new BufferedWriter(new FileWriter(
+						MPSSim.RESULT_PATH
+								+ "sim-"+finishedQueries.get(i).peek().getQuery_name()
+								+ "-" + n_bg + "-" + i+"-"+bg_name + ".csv"));
+//								+ "+" + n_bg + "+" + bg_name + "+" + schedulingType + ".csv"));				
+//								+ "+" + n_bg + "+" + bg_name + "-" + schedulingType + "-"
+//								+ "latency.csv"));
+				bw.write("end_to_end\n");
+				for (Query finishedQuery : finishedQueries.get(i)) {
+					if(finishedQuery.getEnd_time()<=COMPLETE_TIME) {
+						accumulative_latency += finishedQuery.getEnd_time()
+								- finishedQuery.getStart_time();
+						all_latency.add(finishedQuery.getEnd_time()-finishedQuery.getStart_time());
+//						System.out.println("start: "+finishedQuery.getStart_time()+", end: "+finishedQuery.getEnd_time());
+						bw.write(finishedQuery.getEnd_time()
+								- finishedQuery.getStart_time() + "\n");
+						if (finishedQuery.getEnd_time() > target_endtime) {
+							target_endtime = finishedQuery.getEnd_time();
+						}
+					}
+//					System.out.println("start: "+finishedQuery.getStart_time()+", end: "+finishedQuery.getEnd_time()+", complete: "+COMPLETE_TIME);
+				}
+				bw.close();
+			} catch (Exception ex) {
+				System.out
+						.println("Failed to write to the latency.txt, the reason is: "
+								+ ex.getMessage());
+			}
+
+			Collections.sort(all_latency);
+			System.out.println(i+", "+all_latency.size()+": 50%-ile latency is: "+all_latency.get(all_latency.size()/2).floatValue()+", 99%-ile latency is: "+all_latency.get(all_latency.size()*99/100).floatValue());
+			/*
+			 * print out the average latency for target queries
+			 */
+//			System.out.println("The average latency for the target query: "
+//					+ String.format("%.2f", accumulative_latency
+//							/ finishedQueries.get(i).size()) + "(ms)");
+		}
 		}
 	}
 
@@ -939,6 +999,76 @@ public class MPSSim {
 				+ String.format("%.2f", accumulative_utilization));
 	}
 
+	private static void generateTestCase(String target, String bg, int tg_num, int bg_num, int tg_query_num, int bg_query_num) {
+		ArrayList<SimConfiguration> targetConfs = new ArrayList<SimConfiguration>();
+		ArrayList<SimConfiguration> backgroundConfs = new ArrayList<SimConfiguration>();
+		
+		SimConfiguration config = new SimConfiguration();
+		config.setQueryName(target);
+		config.setClientNum(tg_num);
+		config.setQueryNum(tg_query_num);
+		targetConfs.add(config);
+		System.out.println("Target QueryName: "+config.getQueryName()+", Client NUm: "+config.getClientNum() + ", Query num: "+config.getQueryNum());
+
+		SimConfiguration bg_config = new SimConfiguration();
+		bg_config.setQueryName(bg);
+		bg_config.setClientNum(bg_num);
+		bg_config.setQueryNum(bg_query_num);
+		n_bg = bg_config.getClientNum();
+		bg_name=bg_config.getQueryName();
+		backgroundConfs.add(bg_config);
+		System.out.println("Background QueryName: "+bg_config.getQueryName()+", Client NUm: "+bg_config.getClientNum() + ", Query num: "+bg_config.getQueryNum());
+
+		schedulingType="fifo";
+		
+		/*
+		 * populate the target queries
+		 */
+		for (SimConfiguration conf : targetConfs) {
+			for (int i = 0; i < conf.getClientNum(); i++) {
+				LinkedList<Query> targetQueryList = new LinkedList<Query>();
+				LinkedList<Query> finishedQueryList = new LinkedList<Query>();
+				for (int j = 0; j < conf.getQueryNum(); j++) {
+					Query targetQuery = new Query();
+					targetQuery.setQuery_type(i);
+					targetQuery.setQuery_name(conf.getQueryName());
+					for (Kernel kernel : readKernelFile(conf.getQueryName()
+							+ ".csv", targetQuery.getQuery_type())) {
+						targetQuery.getKernelQueue().offer(kernel);
+					}
+					targetQueryList.offer(targetQuery);
+				}
+				query_id.add(new Integer(0));
+				targetQueries.add(targetQueryList);
+				finishedQueries.add(finishedQueryList);
+			}
+		}
+		/*
+		 * populate the background queries, which are always numbered after
+		 * target queries
+		 */
+		for (SimConfiguration conf : backgroundConfs) {
+			for (int i = 0; i < conf.getClientNum(); i++) {
+				LinkedList<Query> backgroundQueryList = new LinkedList<Query>();
+				LinkedList<Query> finishedBGQueryList = new LinkedList<Query>();
+				
+				for (int j = 0; j < conf.getQueryNum(); j++) {
+					Query backgroundQuery = new Query();
+					backgroundQuery.setQuery_type(i + targetQueries.size());
+					backgroundQuery.setQuery_name(conf.getQueryName());
+					for (Kernel kernel : readKernelFile(conf.getQueryName()
+							+ ".csv", backgroundQuery.getQuery_type())) {
+						backgroundQuery.getKernelQueue().offer(kernel);
+					}
+					backgroundQueryList.offer(backgroundQuery);
+				}
+				query_id.add(new Integer(0));
+				backgroundQueries.add(backgroundQueryList);
+				finishedQueries.add(finishedBGQueryList);
+			}
+		}
+	}
+	
 	/**
 	 * Read the simulation configuration and generate queries of different types
 	 * 
@@ -1030,6 +1160,8 @@ public class MPSSim {
 		for (SimConfiguration conf : backgroundConfs) {
 			for (int i = 0; i < conf.getClientNum(); i++) {
 				LinkedList<Query> backgroundQueryList = new LinkedList<Query>();
+				LinkedList<Query> finishedBGQueryList = new LinkedList<Query>();
+				
 				for (int j = 0; j < conf.getQueryNum(); j++) {
 					Query backgroundQuery = new Query();
 					backgroundQuery.setQuery_type(i + targetQueries.size());
@@ -1042,6 +1174,7 @@ public class MPSSim {
 				}
 				query_id.add(new Integer(0));
 				backgroundQueries.add(backgroundQueryList);
+				finishedQueries.add(finishedBGQueryList);
 			}
 		}
 	}

@@ -4,7 +4,7 @@ public class SimConfiguration {
 	private String queryName;
 	private int clientNum;
 	private int queryNum;
-
+	
 	public String getQueryName() {
 		return queryName;
 	}

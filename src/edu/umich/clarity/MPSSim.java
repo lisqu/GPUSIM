@@ -46,7 +46,8 @@ public class MPSSim {
 	
 	public static ArrayList<LinkedList<Query>> targetQueries;
 	public static ArrayList<LinkedList<Query>> backgroundQueries;
-
+	public static ArrayList<Float> slacks = new ArrayList<Float>();	//slacks between two queries in a client
+	
 	private static ArrayList<LinkedList<Query>> finishedQueries;	//finished query lists
 	
 	private static ArrayList<Map.Entry<Float, Float>> utilization;
@@ -692,8 +693,8 @@ public class MPSSim {
 						
 						comingQuery.setQuery_id(query_id.get(kernel.getQuery_type()));
 						query_id.set(kernel.getQuery_type(), comingQuery.getQuery_id()+1);
-						issuingQueries.get(kernel.getQuery_type()).setReady_time(kernel.getEnd_time()+0.5f);
-						issuingQueries.get(kernel.getQuery_type()).setStart_time(kernel.getEnd_time()+0.5f);
+						issuingQueries.get(kernel.getQuery_type()).setReady_time(kernel.getEnd_time()+slacks.get(kernel.getQuery_type()));
+						issuingQueries.get(kernel.getQuery_type()).setStart_time(kernel.getEnd_time()+slacks.get(kernel.getQuery_type()));
 						
 					} else {
 						COMPLETE_TIME = kernel.getEnd_time();
@@ -714,8 +715,8 @@ public class MPSSim {
 						comingQuery.setQuery_id(query_id.get(kernel.getQuery_type()));
 						query_id.set(kernel.getQuery_type(), comingQuery.getQuery_id()+1);
 						
-						issuingQueries.get(kernel.getQuery_type()).setReady_time(kernel.getEnd_time()+1.0f);
-						issuingQueries.get(kernel.getQuery_type()).setStart_time(kernel.getEnd_time()+1.0f);
+						issuingQueries.get(kernel.getQuery_type()).setReady_time(kernel.getEnd_time()+slacks.get(kernel.getQuery_type()));
+						issuingQueries.get(kernel.getQuery_type()).setStart_time(kernel.getEnd_time()+slacks.get(kernel.getQuery_type()));
 //						issuingQueries.get(kernel.getQuery_type()).setReady_time(kernel.getEnd_time()+bg_load.get(comingQuery.getQuery_id())-duration+1.0f);
 //						issuingQueries.get(kernel.getQuery_type()).setStart_time(kernel.getEnd_time()+bg_load.get(comingQuery.getQuery_id())-duration+1.0f);
 //						System.out.println("end time: "+kernel.getEnd_time()+", duration: "+duration+", start: "+ issuingQueries.get(kernel.getQuery_type()).getStart_time());
@@ -999,6 +1000,23 @@ public class MPSSim {
 				+ String.format("%.2f", accumulative_utilization));
 	}
 
+	private static float getSlack(String query_name) {
+		if(Detail)	System.out.println(query_name);
+		
+		if(query_name.equals("dig")) {
+			return 0.95f;
+		} else if(query_name.equals("imc")) {
+			return 0.25f;
+		} else if(query_name.equals("face")) {
+			return 0.03f;
+		} else if(query_name.equals("pos")) {
+			return 0.25f;
+		} else if(query_name.equals("ner")) {
+			return 0.1f;
+		}		
+		return 0;
+	}
+	
 	private static void generateTestCase(String target, String bg, int tg_num, int bg_num, int tg_query_num, int bg_query_num) {
 		ArrayList<SimConfiguration> targetConfs = new ArrayList<SimConfiguration>();
 		ArrayList<SimConfiguration> backgroundConfs = new ArrayList<SimConfiguration>();
@@ -1008,7 +1026,7 @@ public class MPSSim {
 		config.setClientNum(tg_num);
 		config.setQueryNum(tg_query_num);
 		targetConfs.add(config);
-		System.out.println("Target QueryName: "+config.getQueryName()+", Client NUm: "+config.getClientNum() + ", Query num: "+config.getQueryNum());
+		System.out.println("Target QueryName: "+config.getQueryName()+", Client Num: "+config.getClientNum() + ", Query num: "+config.getQueryNum());
 
 		SimConfiguration bg_config = new SimConfiguration();
 		bg_config.setQueryName(bg);
@@ -1017,7 +1035,7 @@ public class MPSSim {
 		n_bg = bg_config.getClientNum();
 		bg_name=bg_config.getQueryName();
 		backgroundConfs.add(bg_config);
-		System.out.println("Background QueryName: "+bg_config.getQueryName()+", Client NUm: "+bg_config.getClientNum() + ", Query num: "+bg_config.getQueryNum());
+		System.out.println("Background QueryName: "+bg_config.getQueryName()+", Client Num: "+bg_config.getClientNum() + ", Query num: "+bg_config.getQueryNum());
 
 		schedulingType="fifo";
 		
@@ -1041,6 +1059,7 @@ public class MPSSim {
 				query_id.add(new Integer(0));
 				targetQueries.add(targetQueryList);
 				finishedQueries.add(finishedQueryList);
+				slacks.add(new Float(getSlack(conf.getQueryName())));	
 			}
 		}
 		/*
@@ -1065,6 +1084,7 @@ public class MPSSim {
 				query_id.add(new Integer(0));
 				backgroundQueries.add(backgroundQueryList);
 				finishedQueries.add(finishedBGQueryList);
+				slacks.add(new Float(getSlack(conf.getQueryName())));	
 			}
 		}
 	}

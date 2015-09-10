@@ -59,7 +59,8 @@ public class MPSSim {
 	private ArrayList<Query> issuingQueries;
 	private ArrayList<Integer> issueIndicator;
 	private Queue<Kernel> kernelQueue;
-
+	private ArrayList<Kernel> memCpies = new ArrayList<Kernel>();
+	
 	public static float COMPLETE_TIME;	//The complete time of target queries
 	
 	public static int n_bg;
@@ -564,10 +565,18 @@ public class MPSSim {
 						float st = Math.max(elapse_time-overlapping_time, issuingQueries.get(kernel.getQuery_type()).getReady_time());
 						kernel.setStart_time(st);						
 
+						if(kernel.getOccupancy() == 0) {
+							kernel.setReal_duration(calMemcpyDuration(kernel, st));
+							memCpies.add(kernel);
+						} else {
+							kernel.setReal_duration(kernel.getDuration());
+						}
+						
 //						kernel.setStart_time(elapse_time-overlapping_time);
 //						System.out.println("ready: "+issuingQueries.get(kernel.getQuery_type()).getStart_time()+", start: "+ (elapse_time-overlapping_time) );
 
-						kernel.setEnd_time(kernel.getDuration() + st + MPSSim.KERNEL_SLACK);
+						kernel.setEnd_time(kernel.getReal_duration() + st + MPSSim.KERNEL_SLACK);
+						
 //						kernel.setEnd_time(kernel.getDuration() + elapse_time + MPSSim.KERNEL_SLACK);
 						kernelQueue.offer(kernel);
 //						if(kernel.getQuery_type() >= targetQueries.size() && elapse_time <1000)
@@ -586,6 +595,7 @@ public class MPSSim {
 						 * 8. assign the compute slot for the kernel
 						 */
 						available_slots -= kernel.getOccupancy();
+						
 //						if (kernel.getOccupancy() == 0) {
 //							pcie_transfer = true;
 //						}
@@ -605,6 +615,33 @@ public class MPSSim {
 		}
 	}
 
+	public float calMemcpyDuration(Kernel kernel, float current_time) {
+		int active_memcpies = 0;
+		float ret = 0.0f;
+		
+		for(Kernel k : memCpies) {
+			if(k.getStart_time() < current_time && k.getStart_time()+k.getDuration() > current_time) {
+				active_memcpies ++;
+				ret += k.getDuration()-(current_time - k.getStart_time());
+//				ret += k.getDuration();
+
+			}
+		}
+		for (int i=0;i<memCpies.size();i++) {
+			if(memCpies.get(i).getStart_time() + memCpies.get(i).getReal_duration() < current_time) {
+				memCpies.remove(i);
+			}
+		}
+				
+		if(active_memcpies < 3) {
+			return kernel.getDuration();
+		} else {
+//			System.out.println(ret/3 + kernel.getDuration());
+			return ret/3.0f + kernel.getDuration();
+		}
+//		return 1.0f;
+	}
+	
 	/**
 	 * 
 	 */
@@ -629,6 +666,7 @@ public class MPSSim {
 			if (kernel.getOccupancy() == 0) {
 				pcie_transfer = false;
 			}
+//			System.out.println(kernel.getQuery_type()+" : "+kernel.getExecution_order());
 			/*
 			 * 3. mark the query as not sequential constrained to issue kernel
 			 */
@@ -738,10 +776,21 @@ public class MPSSim {
 			}
 			
 			float overlapping_time=0.0f;
-			int batches = (int) Math.ceil(kernel.getWarps()/(float)(kernel.getWarps_per_batch()));
-			if(batches != 0) overlapping_time = kernel.getDuration()/batches;
 
-			enqueueKernel_quan(kernel.getEnd_time(), overlapping_time);
+			float start_time;
+			if(kernel.getOccupancy()==0) {
+				start_time = kernel.getStart_time();
+				overlapping_time = 0.0f;
+			}
+			else { 
+				start_time = kernel.getEnd_time();
+				int batches = (int) Math.ceil(kernel.getWarps()/(float)(kernel.getWarps_per_batch()));
+				if(batches != 0) overlapping_time = kernel.getDuration()/batches;
+			}
+
+//			overlapping_time=0;
+			enqueueKernel_quan(start_time, overlapping_time);			
+//			enqueueKernel_quan(kernel.getEnd_time(), overlapping_time);
 		}
 		System.out
 				.println("At time "
@@ -774,6 +823,7 @@ public class MPSSim {
 				String[] profile = line.split(",");
 				Kernel kernel = new Kernel();
 				kernel.setDuration(new Float(profile[2]).floatValue());
+				kernel.setReal_duration(new Float(profile[2]).floatValue());
 				kernel.setOccupancy(new Integer(profile[5]).intValue());
 				kernel.setWarps_per_batch((int)(new Float(profile[4]).floatValue()*64*15));
 				kernel.setWarps(new Integer(profile[3]).intValue());
@@ -1004,16 +1054,29 @@ public class MPSSim {
 		if(Detail)	System.out.println(query_name);
 		
 		if(query_name.equals("dig")) {
-			return 0.95f;
+			return 0.65f;
 		} else if(query_name.equals("imc")) {
-			return 0.25f;
+			return 0.2f;
 		} else if(query_name.equals("face")) {
-			return 0.03f;
+			return 0.01f;
 		} else if(query_name.equals("pos")) {
-			return 0.25f;
+			return 0.02f;
 		} else if(query_name.equals("ner")) {
-			return 0.1f;
+			return 0.01f;
 		}		
+/*		
+		if(query_name.equals("dig")) {
+			return 1.1f;
+		} else if(query_name.equals("imc")) {
+			return 0.56f;
+		} else if(query_name.equals("face")) {
+			return 0.32f;
+		} else if(query_name.equals("pos")) {
+			return 0.540f;
+		} else if(query_name.equals("ner")) {
+			return 0.625f;
+		}
+*/		
 		return 0;
 	}
 	
@@ -1087,6 +1150,9 @@ public class MPSSim {
 				slacks.add(new Float(getSlack(conf.getQueryName())));	
 			}
 		}
+		
+		for(int i=0;i<slacks.size();i++)
+			System.out.println(slacks.get(i));
 	}
 	
 	/**

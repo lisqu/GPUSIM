@@ -18,6 +18,7 @@ public class Kernel {
 	private int warps;
 	private float slack_time;	//the delta time between previous kernel completes and the current kernel is issued
 	private float sole_start_time;	//the start time of the kernel when the query runs alone
+	private float real_duration;	//the real duration of the kernel, only valid for memcpies
 	
 	public Kernel() {
 		this.start_time = 0.0f;
@@ -118,5 +119,13 @@ public class Kernel {
 
 	public void setSole_start_time(float sole_start_time) {
 		this.sole_start_time = sole_start_time;
+	}
+
+	public float getReal_duration() {
+		return real_duration;
+	}
+
+	public void setReal_duration(float real_duration) {
+		this.real_duration = real_duration;
 	}
 }

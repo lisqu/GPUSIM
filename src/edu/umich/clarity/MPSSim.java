@@ -99,13 +99,18 @@ public class MPSSim {
 	 * initialize the simulator
 	 */
 	private void init() {
+		float i = 0.0f;
 		for (LinkedList<Query> queries : targetQueries) {
 			issuingQueries.add(queries.poll());
+			issuingQueries.get(issuingQueries.size()-1).setReady_time(i);
+			i = i+1.0f;
 		}
 		for (LinkedList<Query> queries : backgroundQueries) {
 			issuingQueries.add(queries.poll());
+			issuingQueries.get(issuingQueries.size()-1).setReady_time(i);
+			i = i + 1.0f;
 		}
-		for (int i = 0; i < (issuingQueries.size()); i++) {
+		for (int m = 0; m < (issuingQueries.size()); m++) {
 			issueIndicator.add(1);
 		}
 //		enqueueKernel(0.0f);
@@ -564,13 +569,15 @@ public class MPSSim {
 						issuingQueries.get(chosen_query).setSeqconstraint(true);
 						float st = Math.max(elapse_time-overlapping_time, issuingQueries.get(kernel.getQuery_type()).getReady_time());
 						kernel.setStart_time(st);						
-
+///*
 						if(kernel.getOccupancy() == 0) {
 							kernel.setReal_duration(calMemcpyDuration(kernel, st));
 							memCpies.add(kernel);
-						} else {
-							kernel.setReal_duration(kernel.getDuration());
-						}
+						} 
+//						else {
+//							kernel.setReal_duration(kernel.getDuration());
+//						}
+//*/
 						
 //						kernel.setStart_time(elapse_time-overlapping_time);
 //						System.out.println("ready: "+issuingQueries.get(kernel.getQuery_type()).getStart_time()+", start: "+ (elapse_time-overlapping_time) );
@@ -632,13 +639,19 @@ public class MPSSim {
 				memCpies.remove(i);
 			}
 		}
-				
+		
+		ret = kernel.getDuration();
 		if(active_memcpies < 3) {
-			return kernel.getDuration();
+			ret =  kernel.getDuration();
 		} else {
 //			System.out.println(ret/3 + kernel.getDuration());
-			return ret/3.0f + kernel.getDuration();
+			ret = ret/3.0f + kernel.getDuration();
 		}
+		
+//		if(kernel.getQuery_type() >= 1)
+//			System.out.println("duration updates from: "+kernel.getDuration()+" to "+ret+", active is: "+active_memcpies);
+		
+		return ret;
 //		return 1.0f;
 	}
 	
@@ -666,6 +679,14 @@ public class MPSSim {
 			if (kernel.getOccupancy() == 0) {
 				pcie_transfer = false;
 			}
+			
+			if(kernel.getExecution_order() == 0 && kernel.getStart_time() < 0.5f){
+				kernel.setStart_time(kernel.getQuery_type());
+			}
+			if(kernel.getQuery_type() == 0)
+				System.out.println(kernel.getExecution_order()+" : "+kernel.getStart_time()+"~~~~~~~~~~~~~~~~~~~");
+			else 
+				System.out.println(kernel.getExecution_order()+" : "+kernel.getStart_time()+", duration:"+kernel.getDuration()+", client: "+kernel.getQuery_type());
 //			System.out.println(kernel.getQuery_type()+" : "+kernel.getExecution_order());
 			/*
 			 * 3. mark the query as not sequential constrained to issue kernel
@@ -787,7 +808,7 @@ public class MPSSim {
 				int batches = (int) Math.ceil(kernel.getWarps()/(float)(kernel.getWarps_per_batch()));
 				if(batches != 0) overlapping_time = kernel.getDuration()/batches;
 			}
-
+			
 //			overlapping_time=0;
 			enqueueKernel_quan(start_time, overlapping_time);			
 //			enqueueKernel_quan(kernel.getEnd_time(), overlapping_time);
@@ -974,9 +995,9 @@ public class MPSSim {
 			/*
 			 * print out the average latency for target queries
 			 */
-//			System.out.println("The average latency for the target query: "
-//					+ String.format("%.2f", accumulative_latency
-//							/ finishedQueries.get(i).size()) + "(ms)");
+			System.out.println("The average latency for the target query: "
+					+ String.format("%.2f", accumulative_latency
+							/ finishedQueries.get(i).size()) + "(ms)");
 		}
 		if(Detail) {
 //calculate latency of background queries		
@@ -1052,19 +1073,20 @@ public class MPSSim {
 
 	private static float getSlack(String query_name) {
 		if(Detail)	System.out.println(query_name);
-		
+/*		
 		if(query_name.equals("dig")) {
-			return 0.65f;
+			return 1.0f;
 		} else if(query_name.equals("imc")) {
-			return 0.2f;
+			return 0.56f;
 		} else if(query_name.equals("face")) {
-			return 0.01f;
+			return 0.32f;
 		} else if(query_name.equals("pos")) {
 			return 0.02f;
 		} else if(query_name.equals("ner")) {
 			return 0.01f;
 		}		
-/*		
+*/
+///*		
 		if(query_name.equals("dig")) {
 			return 1.1f;
 		} else if(query_name.equals("imc")) {
@@ -1076,7 +1098,7 @@ public class MPSSim {
 		} else if(query_name.equals("ner")) {
 			return 0.625f;
 		}
-*/		
+//*/		
 		return 0;
 	}
 	

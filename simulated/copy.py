@@ -22,7 +22,7 @@ def main( args ):
         tg=csv.split('-')[1]
         n_bg=csv.split('-')[2]
         bg=csv.split('-')[3].split('.')[0]
-        shutil.copy(csv, '/home/quan/project/bubble-GPU/accurancy/figs/'+tg+'/'+bg+'/'+csv)
+        shutil.copy(csv, '/Users/Quan/project/bubble-GPU/accurancy/figs/'+tg+'/'+bg+'/'+csv)
 
     return 0
 

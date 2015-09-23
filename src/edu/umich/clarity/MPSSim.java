@@ -45,7 +45,7 @@ public class MPSSim {
 //	public static final String BG_LOAD="input/load/bg_load.csv";
 	
 //	public static int[] bg_start_points = {0,1226,2311,3327,4289,5359,6349,7122};
-	public static float target_start_point=8876.0f;
+	public static float target_start_point;
 	
 	public static ArrayList<Float> bg_start_points = new ArrayList<Float>();
 	
@@ -53,11 +53,6 @@ public class MPSSim {
 	public static ArrayList<LinkedList<Query>> backgroundQueries;
 	public static ArrayList<Float> slacks = new ArrayList<Float>();	//slacks between two queries in a client
 		
-	public static float[] dig_delay = {0,1037,1995,3020,4023,5043,6017,7106};
-	public static float[] imc_delay = {0,1161,2180,3182,4194,5255,6165,7111};
-	public static float[] ner_delay = {0,1000,2000,3000,4000,5000,6000,7000};
-	public static float[] pos_delay = {0,1000,2000,3000,4000,5000,6000,7000};
-
 	private Random randQuery = new Random();	//random delay between queries
 	private static ArrayList<LinkedList<Query>> finishedQueries;	//finished query lists
 	
@@ -623,6 +618,9 @@ public class MPSSim {
 							else kernel.setReal_duration(kernel.getDuration());						
 						}
 						
+//						if(kernel.getQuery_type() >=1)
+							kernel.setReal_duration(kernel.getReal_duration()*1.05f);
+						
 //						if(kernel.getQuery_type() == 0)
 //							System.out.println(kernel.getExecution_order()+" : "+kernel.getDuration()+"->"+kernel.getReal_duration());
 
@@ -683,7 +681,7 @@ public class MPSSim {
 		
 		ret = kernel.getDuration();
 		
-		if(active_memcpies.size() > 1 && active_memcpies.size() <= 3) {
+		if(active_memcpies.size() <= 3) {
 			ret =  kernel.getDuration() * 1.0f;
 		} else {
 			float slow_down = (float)(active_memcpies.size()) / 3.0f;
@@ -707,11 +705,11 @@ public class MPSSim {
 				memCpies.remove(i);
 			}
 		}
-		
-//		if(kernel.getQuery_type() < 1)
-//			System.out.println("client: "+kernel.getQuery_type()+", duration updates from: "+kernel.getDuration()+" to "+ret+", active is: "+active_memcpies+", current time: "+current_time
-//					+", size: "+memCpies.size()+", ret is: "+ret+", start: "+kernel.getStart_time());
-		
+/*		
+		if(kernel.getQuery_type() < 1)
+			System.out.println("client: "+kernel.getQuery_type()+", duration updates from: "+kernel.getDuration()+" to "+ret+", active is: "+active_memcpies+", current time: "+current_time
+					+", size: "+memCpies.size()+", ret is: "+ret+", start: "+kernel.getStart_time());
+*/		
 		return ret;
 	}
 	
@@ -741,9 +739,9 @@ public class MPSSim {
 			}
 /*			
 			if(kernel.getQuery_type() == 0)
-				System.out.println(kernel.getExecution_order()+" : start: "+kernel.getStart_time()+"~~~~~~~~~~~~~~~~~~~, duration: "+kernel.getDuration());
+				System.out.println(kernel.getExecution_order()+" : start: "+kernel.getStart_time()+"~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~, duration: "+kernel.getReal_duration());
 			else 
-				System.out.println(kernel.getExecution_order()+" : start: "+kernel.getStart_time()+", duration:"+kernel.getDuration()+", client: "+kernel.getQuery_type());
+				System.out.println(kernel.getExecution_order()+" : start: "+kernel.getStart_time()+", duration:"+kernel.getReal_duration()+", client: "+kernel.getQuery_type());
 */
 //			System.out.println(kernel.getQuery_type()+" : "+kernel.getExecution_order());
 			/*
@@ -811,8 +809,8 @@ public class MPSSim {
 						query_id.set(kernel.getQuery_type(), comingQuery.getQuery_id()+1);
 //						issuingQueries.get(kernel.getQuery_type()).setReady_time(kernel.getEnd_time()+slacks.get(kernel.getQuery_type()));
 //						issuingQueries.get(kernel.getQuery_type()).setStart_time(kernel.getEnd_time()+slacks.get(kernel.getQuery_type()));
-						issuingQueries.get(kernel.getQuery_type()).setReady_time(kernel.getEnd_time()+target_load.get(comingQuery.getQuery_id())-duration+slacks.get(kernel.getQuery_type()));
-						issuingQueries.get(kernel.getQuery_type()).setStart_time(kernel.getEnd_time()+target_load.get(comingQuery.getQuery_id())-duration+slacks.get(kernel.getQuery_type()));
+						issuingQueries.get(kernel.getQuery_type()).setReady_time(kernel.getEnd_time()+target_load.get(comingQuery.getQuery_id())-duration);
+						issuingQueries.get(kernel.getQuery_type()).setStart_time(kernel.getEnd_time()+target_load.get(comingQuery.getQuery_id())-duration);
 					//	System.out.println("end time: "+kernel.getEnd_time()+", duration: "+duration+", start: "+ issuingQueries.get(kernel.getQuery_type()).getStart_time()+", load: "+target_load.get(comingQuery.getQuery_id()));
 					} else {
 						COMPLETE_TIME = kernel.getEnd_time();
@@ -1099,7 +1097,19 @@ public class MPSSim {
 				for (Query finishedQuery : finishedQueries.get(i)) {
 					accumulative_latency += finishedQuery.getEnd_time()
 							- finishedQuery.getStart_time();
-					all_latency.add(finishedQuery.getEnd_time()-finishedQuery.getStart_time());
+					
+					if(finishedQueries.get(i).peek().getQuery_name().equals("imc")) {
+						all_latency.add(finishedQuery.getEnd_time()-finishedQuery.getStart_time()+1.2f);
+						System.out.println("tg is imc ");
+					}
+					else if(finishedQueries.get(i).peek().getQuery_name().equals("dig")) {
+						all_latency.add(finishedQuery.getEnd_time()-finishedQuery.getStart_time()+1.0f);
+						System.out.println("tg is dig ");
+					}
+					else {
+						all_latency.add(finishedQuery.getEnd_time()-finishedQuery.getStart_time());
+					}
+					
 //					System.out.println("start: "+finishedQuery.getStart_time()+", end: "+finishedQuery.getEnd_time());
 //					bw.append(finishedQuery.getEnd_time()
 //							- finishedQuery.getStart_time() + "\n");
@@ -1220,9 +1230,9 @@ public class MPSSim {
 		} else if(query_name.equals("face")) {
 			return 0.32f;
 		} else if(query_name.equals("pos")) {
-			return 0.540f;
+			return 0.05f;
 		} else if(query_name.equals("ner")) {
-			return 0.625f;
+			return 0.05f;
 		}
 //*/		
 		return 0;
@@ -1234,7 +1244,7 @@ public class MPSSim {
 		if(query_name.equals("dig")) {
 			return 780.0f;
 		} else if(query_name.equals("imc")) {
-			return 1900.0f;
+			return 1800.0f;
 		} else if(query_name.equals("face")) {
 			return 1.0f;
 //			return 1.46f;
@@ -1256,11 +1266,10 @@ public class MPSSim {
 			return 180.0f;
 		} else if(query_name.equals("face")) {
 			return 1.0f;
-//			return 1.46f;
 		} else if(query_name.equals("pos")) {
-			return 1.0f;
+			return 5.0f;
 		} else if(query_name.equals("ner")) {
-			return 1.0f;
+			return 5.0f;
 		}
 		
 		return 1.0f;

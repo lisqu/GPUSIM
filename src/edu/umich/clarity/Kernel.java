@@ -19,6 +19,9 @@ public class Kernel {
 	private float slack_time;	//the delta time between previous kernel completes and the current kernel is issued
 	private float sole_start_time;	//the start time of the kernel when the query runs alone
 	private float real_duration;	//the real duration of the kernel, only valid for memcpies
+	private int cuda_malloc;
+	private int cuda_free;
+	private int pinned;
 	
 	public Kernel() {
 		this.start_time = 0.0f;
@@ -127,5 +130,29 @@ public class Kernel {
 
 	public void setReal_duration(float real_duration) {
 		this.real_duration = real_duration;
+	}
+
+	public int getCuda_malloc() {
+		return cuda_malloc;
+	}
+
+	public void setCuda_malloc(int cuda_malloc) {
+		this.cuda_malloc = cuda_malloc;
+	}
+
+	public int getCuda_free() {
+		return cuda_free;
+	}
+
+	public void setCuda_free(int cuda_free) {
+		this.cuda_free = cuda_free;
+	}
+
+	public int getPinned() {
+		return pinned;
+	}
+
+	public void setPinned(int pinned) {
+		this.pinned = pinned;
 	}
 }

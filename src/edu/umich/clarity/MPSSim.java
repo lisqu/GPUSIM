@@ -597,8 +597,10 @@ public class MPSSim {
 						} 
 						
 /*****Todo: manage cudaMalloc contention*******/
-						if(kernel.getCuda_free() == 1 && kernel.getCuda_malloc() == 1) {
-							kernel.setReal_duration(20.0f);  	//Initialize the duration
+//						if(kernel.getCuda_free() == 1 || kernel.getCuda_malloc() == 1) {
+						if(kernel.getCuda_malloc() == 1) {
+//							kernel.setDuration(1.0f);  	//Initialize the duration
+							kernel.setReal_duration(1.0f);  	//Initialize the duration
 							cudaAllocs.add(kernel);								//Add to the memcpy queue
 							kernel.setReal_duration(calAllocDuration(kernel, st));		//Update the duration of the kernel							
 						}
@@ -695,7 +697,8 @@ public class MPSSim {
 				ret = memCpies.get(active_memcpies.get(i)).getDuration() * slow_down;	//calculate new duration
 				float delta_time = ret - memCpies.get(active_memcpies.get(i)).getReal_duration();
 //				System.out.println("delta_time is: "+delta_time);
-				
+				if(delta_time < 0)	delta_time = 0;
+
 				memCpies.get(active_memcpies.get(i)).setReal_duration(ret);		//update new duration
 				
 				issuingQueries.get(memCpies.get(active_memcpies.get(i)).getQuery_type()).setReady_time(
@@ -726,35 +729,46 @@ public class MPSSim {
 		LinkedList<Integer> active_allocs = new LinkedList<Integer>();
 		
 		for(Kernel k : cudaAllocs) {
-			if(k.getStart_time()+k.getReal_duration() >= current_time + kernel.getDuration()) {
-				active_allocs.add(new Integer(cudaAllocs.indexOf(k)));			
+			float d = Math.max(1.0f, k.getReal_duration());
+			if(k.getStart_time()+d >= current_time + kernel.getDuration()) {
+				active_allocs.add(new Integer(cudaAllocs.indexOf(k)));	
+//				System.out.println("added~~~~~~ start at: "+k.getStart_time()+", curent time: "+current_time);
 			}
 		}
+//		System.out.println("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
 		
-		ret = kernel.getDuration();
-		
-		if(active_allocs.size() <= 2) {
+		if(active_allocs.size() <= 1) {
 			ret =  kernel.getDuration() * 1.0f;
 		} else {
-//			float slow_down = (float)(active_memcpies.size()) / 3.0f;
+/*			
+			for(int i=0;i<issuingQueries.size();i++)
+				issuingQueries.get(i).setReady_time(
+					issuingQueries.get(i).getReady_time() + 10.0f);
+*/
 			for(int i=0;i<active_allocs.size();i++) {
-				ret = 20.0f * active_allocs.size();	//calculate new duration
-//				ret = cudaAllocs.get(active_allocs.get(i)).getDuration() * slow_down;	//calculate new duration
+				ret = (4.5f) * active_allocs.size();	//calculate new duration
 				float delta_time = ret - cudaAllocs.get(active_allocs.get(i)).getReal_duration();
+				
+				if(delta_time < 0)	delta_time = 0;
 				
 				cudaAllocs.get(active_allocs.get(i)).setReal_duration(ret);		//update new duration
 				
 				issuingQueries.get(cudaAllocs.get(active_allocs.get(i)).getQuery_type()).setReady_time(
 						issuingQueries.get(cudaAllocs.get(active_allocs.get(i)).getQuery_type()).getReady_time() + delta_time);
 			}
+
 		}
 		
 		for (int i=0;i<cudaAllocs.size();i++) {
-			if(cudaAllocs.get(i).getStart_time() + cudaAllocs.get(i).getReal_duration() < current_time) {
+			if(cudaAllocs.get(i).getStart_time() + 100 < current_time) {
 				cudaAllocs.remove(i);
 			}
 		}
-
+/*
+		if(kernel.getQuery_type() < 1)
+			System.out.println("client: "+kernel.getQuery_type()+", duration updates from: "+kernel.getDuration()+" to "+ret+", active is: "+active_allocs+", current time: "+current_time
+					+", size: "+active_allocs.size()+", ret is: "+ret+", start: "+kernel.getStart_time());
+*/		
 		return ret;
 	}
 	
@@ -1240,7 +1254,7 @@ public class MPSSim {
 		} else if(query_name.equals("imc")) {
 			return 1.0f;
 		} else if(query_name.equals("face")) {
-			return 0.32f;
+			return 0.15f;
 		} else if(query_name.equals("pos")) {
 			return 0.15f;
 //			return randQuery.nextInt(2);
@@ -1317,7 +1331,7 @@ public class MPSSim {
 		} else if(query_name.equals("imc")) {
 			return 250;
 		} else if(query_name.equals("face")) {
-			return 100;
+			return 50;
 		} else if(query_name.equals("pos")) {
 			return 40;
 		} else if(query_name.equals("ner")) {

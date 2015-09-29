@@ -59,8 +59,6 @@ public class MPSSim {
 	private static ArrayList<Map.Entry<Float, Float>> utilization;
 
 	private static ArrayList<Float> microDelays = new ArrayList<Float>();	//Slow down due to co-location
-	private static ArrayList<Integer> startVariations = new ArrayList<Integer>();	//Start time variation of different apps
-	
 	private static ArrayList<Integer> target_load = new ArrayList<Integer>();
 	private static ArrayList<Integer> bg_load=new ArrayList<Integer>();
 	
@@ -68,8 +66,12 @@ public class MPSSim {
 	private ArrayList<Query> issuingQueries;
 	private ArrayList<Integer> issueIndicator;
 	private Queue<Kernel> kernelQueue;
-	private ArrayList<Kernel> memCpies = new ArrayList<Kernel>();
-	private ArrayList<Kernel> cudaAllocs = new ArrayList<Kernel>();
+	
+	private ArrayList<Kernel> memCpies_HTD = new ArrayList<Kernel>();
+	private ArrayList<Kernel> memCpies_DTH = new ArrayList<Kernel>();
+	
+	private ArrayList<Kernel> cudaMallocs = new ArrayList<Kernel>();
+	private ArrayList<Kernel> cudaFrees = new ArrayList<Kernel>();
 	
 	public static float COMPLETE_TIME;	//The complete time of target queries
 	
@@ -591,8 +593,12 @@ public class MPSSim {
 
 						if(kernel.getOccupancy() == 0) {
 							kernel.setReal_duration(kernel.getDuration());  	//Initialize the duration
-							memCpies.add(kernel);								//Add to the memcpy queue
-							kernel.setReal_duration(calMemcpyDuration(kernel, st));		//Update the duration of the kernel
+							if(kernel.getDirection() == 1)
+								memCpies_HTD.add(kernel);								//Add to the memcpy host to device queue
+							else if (kernel.getDirection() == 2)
+								memCpies_DTH.add(kernel);								//Add to the memcpy device to host queue
+							
+							kernel.setReal_duration(calMemcpyDuration(kernel, st, kernel.getDirection()));		//Update the duration of the kernel
 //							System.out.println(kernel.getExecution_order()+" : "+kernel.getStart_time()+", duration:"+kernel.getDuration()+", client: "+kernel.getQuery_type());
 						} 
 						
@@ -601,8 +607,16 @@ public class MPSSim {
 						if(kernel.getCuda_malloc() == 1) {
 //							kernel.setDuration(1.0f);  	//Initialize the duration
 							kernel.setReal_duration(1.0f);  	//Initialize the duration
-							cudaAllocs.add(kernel);								//Add to the memcpy queue
-							kernel.setReal_duration(calAllocDuration(kernel, st));		//Update the duration of the kernel							
+							cudaMallocs.add(kernel);								//Add to the memcpy queue
+							kernel.setReal_duration(calMallocDuration(kernel, st));		//Update the duration of the kernel							
+						}
+						
+/*****Todo: manage cudaFree contention*******/
+						if(kernel.getCuda_free() == 1) {
+//							kernel.setDuration(1.0f);  	//Initialize the duration
+							kernel.setReal_duration(1.0f);  	//Initialize the duration
+							cudaFrees.add(kernel);								//Add to the memcpy queue
+							kernel.setReal_duration(calFreeDuration(kernel, st));		//Update the duration of the kernel							
 						}
 
 //						kernel.setDuration(kernel.getDuration()*microDelays.get(kernel.getQuery_type()));
@@ -674,15 +688,23 @@ public class MPSSim {
 		}
 	}
 
-	public float calMemcpyDuration(Kernel kernel, float current_time) {
+	public float calMemcpyDuration(Kernel kernel, float current_time, int direction) {
 		float ret = 0.0f;
 		
 		LinkedList<Integer> active_memcpies = new LinkedList<Integer>();
-		
-		for(Kernel k : memCpies) {
-			if(k.getStart_time()+k.getReal_duration() >= current_time + kernel.getDuration()) {
-				active_memcpies.add(new Integer(memCpies.indexOf(k)));			
-				ret += k.getDuration()-(current_time - k.getStart_time());
+		if(direction == 1) {
+			for(Kernel k : memCpies_HTD) {
+				if(k.getStart_time()+k.getReal_duration() >= current_time + kernel.getDuration()) {
+					active_memcpies.add(new Integer(memCpies_HTD.indexOf(k)));			
+					ret += k.getDuration()-(current_time - k.getStart_time());
+				}
+			}
+		} else if(direction == 2) {
+			for(Kernel k : memCpies_DTH) {
+				if(k.getStart_time()+k.getReal_duration() >= current_time + kernel.getDuration()) {
+					active_memcpies.add(new Integer(memCpies_DTH.indexOf(k)));			
+					ret += k.getDuration()-(current_time - k.getStart_time());
+				}
 			}
 		}
 		
@@ -693,27 +715,47 @@ public class MPSSim {
 		} else {
 			float slow_down = (float)(active_memcpies.size()) / 3.0f;
 			for(int i=0;i<active_memcpies.size();i++) {
-//				ret = ret/3.0f + kernel.getDuration();
-				ret = memCpies.get(active_memcpies.get(i)).getDuration() * slow_down;	//calculate new duration
-				float delta_time = ret - memCpies.get(active_memcpies.get(i)).getReal_duration();
-//				System.out.println("delta_time is: "+delta_time);
-				if(delta_time < 0)	delta_time = 0;
+				if(direction == 1) {
+//					ret = ret/3.0f + kernel.getDuration();
+					ret = memCpies_HTD.get(active_memcpies.get(i)).getDuration() * slow_down;	//calculate new duration
+					float delta_time = ret - memCpies_HTD.get(active_memcpies.get(i)).getReal_duration();
+//					System.out.println("delta_time is: "+delta_time);
+					if(delta_time < 0)	delta_time = 0;
 
-				memCpies.get(active_memcpies.get(i)).setReal_duration(ret);		//update new duration
+					memCpies_HTD.get(active_memcpies.get(i)).setReal_duration(ret);		//update new duration
 				
-				issuingQueries.get(memCpies.get(active_memcpies.get(i)).getQuery_type()).setReady_time(
-						issuingQueries.get(memCpies.get(active_memcpies.get(i)).getQuery_type()).getReady_time() + delta_time);
+					issuingQueries.get(memCpies_HTD.get(active_memcpies.get(i)).getQuery_type()).setReady_time(
+							issuingQueries.get(memCpies_HTD.get(active_memcpies.get(i)).getQuery_type()).getReady_time() + delta_time);
+				} else if (direction == 2) {
+					ret = memCpies_DTH.get(active_memcpies.get(i)).getDuration() * slow_down;	//calculate new duration
+					float delta_time = ret - memCpies_DTH.get(active_memcpies.get(i)).getReal_duration();
+					if(delta_time < 0)	delta_time = 0;
+
+					memCpies_DTH.get(active_memcpies.get(i)).setReal_duration(ret);		//update new duration
+				
+					issuingQueries.get(memCpies_DTH.get(active_memcpies.get(i)).getQuery_type()).setReady_time(
+							issuingQueries.get(memCpies_DTH.get(active_memcpies.get(i)).getQuery_type()).getReady_time() + delta_time);
+				}
 			}
 //			System.out.println(ret/3 + kernel.getDuration());
 //			ret = ret/3.0f + kernel.getDuration();
 //			ret = kernel.getDuration()* (n_tg + n_bg)/3.86f;
 		}
 		
-		for (int i=0;i<memCpies.size();i++) {
-			if(memCpies.get(i).getStart_time() + memCpies.get(i).getReal_duration() < current_time) {
-				memCpies.remove(i);
+		if(direction == 1) {
+			for (int i=0;i<memCpies_HTD.size();i++) {
+				if(memCpies_HTD.get(i).getStart_time() + memCpies_HTD.get(i).getReal_duration() < current_time) {
+					memCpies_HTD.remove(i);
+				}
 			}
+		} else if (direction == 2) {
+			for (int i=0;i<memCpies_DTH.size();i++) {
+				if(memCpies_DTH.get(i).getStart_time() + memCpies_DTH.get(i).getReal_duration() < current_time) {
+					memCpies_DTH.remove(i);
+				}
+			}			
 		}
+		
 /*		
 		if(kernel.getQuery_type() < 1)
 			System.out.println("client: "+kernel.getQuery_type()+", duration updates from: "+kernel.getDuration()+" to "+ret+", active is: "+active_memcpies+", current time: "+current_time
@@ -722,46 +764,44 @@ public class MPSSim {
 		
 		return ret;
 	}
-	
-	public float calAllocDuration(Kernel kernel, float current_time) {
+
+	//Todo: Calculate the impact of cudaMalloc on the latency	
+	public float calMallocDuration(Kernel kernel, float current_time) {
 		float ret = 0.0f;
 		
 		LinkedList<Integer> active_allocs = new LinkedList<Integer>();
 		
-		for(Kernel k : cudaAllocs) {
+		for(Kernel k : cudaMallocs) {
 			float d = Math.max(1.0f, k.getReal_duration());
 			if(k.getStart_time()+d >= current_time + kernel.getDuration()) {
-				active_allocs.add(new Integer(cudaAllocs.indexOf(k)));	
+				active_allocs.add(new Integer(cudaMallocs.indexOf(k)));	
 //				System.out.println("added~~~~~~ start at: "+k.getStart_time()+", curent time: "+current_time);
 			}
 		}
-//		System.out.println("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
 		
 		if(active_allocs.size() <= 1) {
 			ret =  kernel.getDuration() * 1.0f;
 		} else {
-/*			
-			for(int i=0;i<issuingQueries.size();i++)
-				issuingQueries.get(i).setReady_time(
-					issuingQueries.get(i).getReady_time() + 10.0f);
-*/
 			for(int i=0;i<active_allocs.size();i++) {
-				ret = (4.5f) * active_allocs.size();	//calculate new duration
-				float delta_time = ret - cudaAllocs.get(active_allocs.get(i)).getReal_duration();
+//				ret = (4.5f) * active_allocs.size();	//calculate new duration
+				ret = randQuery.nextFloat()*(8.0f) * active_allocs.size();	//calculate new duration
+//				ret = Math.max(ret, 2.0f * active_allocs.size());
+				
+				float delta_time = ret - cudaMallocs.get(active_allocs.get(i)).getReal_duration();
 				
 				if(delta_time < 0)	delta_time = 0;
 				
-				cudaAllocs.get(active_allocs.get(i)).setReal_duration(ret);		//update new duration
+				cudaMallocs.get(active_allocs.get(i)).setReal_duration(ret);		//update new duration
 				
-				issuingQueries.get(cudaAllocs.get(active_allocs.get(i)).getQuery_type()).setReady_time(
-						issuingQueries.get(cudaAllocs.get(active_allocs.get(i)).getQuery_type()).getReady_time() + delta_time);
+				issuingQueries.get(cudaMallocs.get(active_allocs.get(i)).getQuery_type()).setReady_time(
+						issuingQueries.get(cudaMallocs.get(active_allocs.get(i)).getQuery_type()).getReady_time() + delta_time);
 			}
 
 		}
 		
-		for (int i=0;i<cudaAllocs.size();i++) {
-			if(cudaAllocs.get(i).getStart_time() + 100 < current_time) {
-				cudaAllocs.remove(i);
+		for (int i=0;i<cudaMallocs.size();i++) {
+			if(cudaMallocs.get(i).getStart_time() + 100 < current_time) {
+				cudaMallocs.remove(i);
 			}
 		}
 /*
@@ -770,6 +810,11 @@ public class MPSSim {
 					+", size: "+active_allocs.size()+", ret is: "+ret+", start: "+kernel.getStart_time());
 */		
 		return ret;
+	}
+
+//Todo: Calculate the impact of cudaFree on the latency
+	public float calFreeDuration(Kernel kernel, float current_time) {
+		return 1.0f;
 	}
 	
 	/**
@@ -978,6 +1023,7 @@ public class MPSSim {
 				kernel.setPinned(new Integer(profile[7]).intValue());
 				kernel.setCuda_malloc(new Integer(profile[8]).intValue());
 				kernel.setCuda_free(new Integer(profile[9]).intValue());
+				kernel.setDirection(new Integer(profile[10]).intValue());	//record the data transfer direction
 				
 				kernelList.add(kernel);
 //				System.out.println("Slack time is: "+kernel.getSlack_time());
@@ -989,7 +1035,6 @@ public class MPSSim {
 				if(kernelList.get(i).getSlack_time()<0)	kernelList.get(i).setSlack_time(0);
 //					System.out.println("file name: "+filename+", the slack id is: "+kernelList.get(i).getExecution_order());
 //				if(kernelList.get(i).getCuda_malloc() > 0)	System.out.println("cuda malloc is: "+kernelList.get(i).getCuda_malloc());
-
 			}
 			
 			fileReader.close();
@@ -1132,9 +1177,10 @@ public class MPSSim {
 					}
 					else {
 						real_latency = finishedQuery.getEnd_time()-finishedQuery.getStart_time()+0.5f;
+//						real_latency = finishedQuery.getEnd_time()-finishedQuery.getStart_time();
 					}
 					
-//					real_latency = finishedQuery.getEnd_time()-finishedQuery.getStart_time()+0.5f;
+					real_latency = finishedQuery.getEnd_time()-finishedQuery.getStart_time();
 					
 					accumulative_latency += real_latency;
 					
@@ -1257,10 +1303,14 @@ public class MPSSim {
 			return 0.15f;
 		} else if(query_name.equals("pos")) {
 			return 0.15f;
-//			return randQuery.nextInt(2);
 		} else if(query_name.equals("ner")) {
 			return 0.05f;
-//			return randQuery.nextInt(2);
+		} else if(query_name.equals("stemmer")) {
+			return 0.05f;
+		} else if(query_name.equals("asr")) {
+			return 0.05f;
+		} else if(query_name.equals("gmm")) {
+			return 0.05f;
 		}
 //*/		
 		return 0;
@@ -1280,6 +1330,12 @@ public class MPSSim {
 			return 20.0f;
 		} else if(query_name.equals("ner")) {
 			return 10.0f;
+		} else if(query_name.equals("stemmer")) {
+			return 230.0f;
+		} else if(query_name.equals("asr")) {
+			return 1420.0f;
+		} else if(query_name.equals("gmm")) {
+			return 475.0f;
 		}
 		
 		return 1.0f;
@@ -1289,15 +1345,21 @@ public class MPSSim {
 		if(Detail)	System.out.println(query_name);
 		
 		if(query_name.equals("dig")) {
-			return 45.0f;
+			return 45.0f+randQuery.nextInt(15);
 		} else if(query_name.equals("imc")) {
-			return 180.0f;
+			return 180.0f+randQuery.nextInt(30);
 		} else if(query_name.equals("face")) {
 			return 340.0f;
 		} else if(query_name.equals("pos")) {
 			return 6.0f;
 		} else if(query_name.equals("ner")) {
 			return 7.5f;
+		} else if(query_name.equals("stemmer")) {
+			return 46.0f;
+		} else if(query_name.equals("asr")) {
+			return 90.0f;
+		} else if(query_name.equals("gmm")) {
+			return 230.0f;
 		}
 		
 		return 1.0f;
@@ -1318,6 +1380,12 @@ public class MPSSim {
 			return 1.0f;
 		} else if(query_name.equals("ner")) {
 			return 1.0f;
+		} else if(query_name.equals("stemmer")) {
+			return 1.0f;
+		} else if(query_name.equals("asr")) {
+			return 1.0f;
+		} else if(query_name.equals("gmm")) {
+			return 1.0f;
 		}
 		
 		return 1.0f;
@@ -1329,13 +1397,19 @@ public class MPSSim {
 		if(query_name.equals("dig")) {
 			return 30;
 		} else if(query_name.equals("imc")) {
-			return 250;
+			return 200;
 		} else if(query_name.equals("face")) {
-			return 50;
+			return 30;
 		} else if(query_name.equals("pos")) {
-			return 40;
+			return 20;
 		} else if(query_name.equals("ner")) {
-			return 40;
+			return 20;
+		} else if(query_name.equals("stemmer")) {
+			return 20;
+		} else if(query_name.equals("asr")) {
+			return 20;
+		} else if(query_name.equals("gmm")) {
+			return 20;
 		}
 		
 		return 20;

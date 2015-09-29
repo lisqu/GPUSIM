@@ -22,6 +22,7 @@ public class Kernel {
 	private int cuda_malloc;
 	private int cuda_free;
 	private int pinned;
+	private int direction;			//data transfer direction if the kernel is a memcpy kernel. 0: not memcpy, 1: host to device, 2: device to host
 	
 	public Kernel() {
 		this.start_time = 0.0f;
@@ -154,5 +155,13 @@ public class Kernel {
 
 	public void setPinned(int pinned) {
 		this.pinned = pinned;
+	}
+
+	public int getDirection() {
+		return direction;
+	}
+
+	public void setDirection(int direction) {
+		this.direction = direction;
 	}
 }

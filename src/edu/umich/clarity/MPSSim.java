@@ -588,9 +588,8 @@ public class MPSSim {
 						 */
 						issuingQueries.get(chosen_query).setSeqconstraint(true);
 						float st = Math.max(elapse_time-overlapping_time, issuingQueries.get(kernel.getQuery_type()).getReady_time());
-						kernel.setStart_time(st);
-						
-
+						kernel.setStart_time(st);					
+///*
 						if(kernel.getOccupancy() == 0) {
 							kernel.setReal_duration(kernel.getDuration());  	//Initialize the duration
 							if(kernel.getDirection() == 1)
@@ -601,6 +600,7 @@ public class MPSSim {
 							kernel.setReal_duration(calMemcpyDuration(kernel, st, kernel.getDirection()));		//Update the duration of the kernel
 //							System.out.println(kernel.getExecution_order()+" : "+kernel.getStart_time()+", duration:"+kernel.getDuration()+", client: "+kernel.getQuery_type());
 						} 
+//*/						
 						
 /*****Todo: manage cudaMalloc contention*******/
 //						if(kernel.getCuda_free() == 1 || kernel.getCuda_malloc() == 1) {
@@ -696,46 +696,67 @@ public class MPSSim {
 		LinkedList<Integer> active_memcpies = new LinkedList<Integer>();
 		if(direction == 1) {
 			for(Kernel k : memCpies_HTD) {
-				if(k.getStart_time()+k.getReal_duration() >= current_time + kernel.getDuration()) {
+//				if(k.getStart_time()+k.getReal_duration() >= current_time + kernel.getDuration()) {
+				if(k.getStart_time()+k.getReal_duration() >= current_time) {
 					active_memcpies.add(new Integer(memCpies_HTD.indexOf(k)));			
 					ret += k.getDuration()-(current_time - k.getStart_time());
 				}
 			}
 		} else if(direction == 2) {
 			for(Kernel k : memCpies_DTH) {
-				if(k.getStart_time()+k.getReal_duration() >= current_time + kernel.getDuration()) {
+//				if(k.getStart_time()+k.getReal_duration() >= current_time + kernel.getDuration()) {
+				if(k.getStart_time()+k.getReal_duration() >= current_time) {
 					active_memcpies.add(new Integer(memCpies_DTH.indexOf(k)));			
 					ret += k.getDuration()-(current_time - k.getStart_time());
 				}
 			}
 		}
 		
+		float slow_down;
 		if(active_memcpies.size() == 1) {
 			ret = kernel.getDuration();
+			slow_down = 1.0f;
 		}
-		else if(active_memcpies.size() >= 2 && active_memcpies.size() <= 4) {
+		else if(active_memcpies.size() >= 2 && active_memcpies.size() <= 4) {			
 			ret =  kernel.getDuration() * (1.0f + 0.05f * active_memcpies.size());
+			slow_down = 1.0f + 0.05f *active_memcpies.size();
 		} else {
-			float slow_down = (float)(active_memcpies.size()) / 4.0f;
+			slow_down = 1.0f + ((active_memcpies.size())/4)*0.3f;
+//			slow_down = (float)(active_memcpies.size()) / 5.0f;
+//			slow_down = (float)(active_memcpies.size()-1) / 4.0f;
+//			System.out.println("the memcpy is delayed~~~~~~~~~~~~~~~~~~");
+		}
+//		slow_down = (float) (1.0f + Math.ceil(((active_memcpies.size()-1)/3))*0.4f);
+		
+		ret = kernel.getDuration() * slow_down;	//calculate new duration
+
+//		if(kernel.getQuery_type() == 0)
+//			System.out.println("the memcpy is delayed******************"+active_memcpies.size()+", length: "+ret+", type: "+kernel.getDirection());
+
+		if(slow_down > 1.0f) {		
 			for(int i=0;i<active_memcpies.size();i++) {
 				if(direction == 1) {
 //					ret = ret/3.0f + kernel.getDuration();
-					ret = memCpies_HTD.get(active_memcpies.get(i)).getDuration() * slow_down;	//calculate new duration
-					float delta_time = ret - memCpies_HTD.get(active_memcpies.get(i)).getReal_duration();
+					float new_time = memCpies_HTD.get(active_memcpies.get(i)).getDuration() * slow_down;	//calculate new duration
+					float delta_time = new_time - memCpies_HTD.get(active_memcpies.get(i)).getReal_duration();
 //					System.out.println("delta_time is: "+delta_time);
 					if(delta_time < 0)	delta_time = 0;
 
-					memCpies_HTD.get(active_memcpies.get(i)).setReal_duration(ret);		//update new duration
-				
+					memCpies_HTD.get(active_memcpies.get(i)).setReal_duration(new_time);		//update new duration
+//					if(memCpies_HTD.get(active_memcpies.get(i)).getQuery_type() == 0)
+//					System.out.println("Duration is updated to--------------------------"+new_time+", "+memCpies_HTD.get(active_memcpies.get(i)).getQuery_type());
+					
 					issuingQueries.get(memCpies_HTD.get(active_memcpies.get(i)).getQuery_type()).setReady_time(
 							issuingQueries.get(memCpies_HTD.get(active_memcpies.get(i)).getQuery_type()).getReady_time() + delta_time);
 				} else if (direction == 2) {
-					ret = memCpies_DTH.get(active_memcpies.get(i)).getDuration() * slow_down;	//calculate new duration
-					float delta_time = ret - memCpies_DTH.get(active_memcpies.get(i)).getReal_duration();
+					float new_time = memCpies_DTH.get(active_memcpies.get(i)).getDuration() * slow_down;	//calculate new duration
+					float delta_time = new_time - memCpies_DTH.get(active_memcpies.get(i)).getReal_duration();
 					if(delta_time < 0)	delta_time = 0;
 
-					memCpies_DTH.get(active_memcpies.get(i)).setReal_duration(ret);		//update new duration
-				
+					memCpies_DTH.get(active_memcpies.get(i)).setReal_duration(new_time);		//update new duration
+					
+//					if(memCpies_DTH.get(active_memcpies.get(i)).getQuery_type() == 0) 
+//						System.out.println("Duration is: "+ new_time);
 					issuingQueries.get(memCpies_DTH.get(active_memcpies.get(i)).getQuery_type()).setReady_time(
 							issuingQueries.get(memCpies_DTH.get(active_memcpies.get(i)).getQuery_type()).getReady_time() + delta_time);
 				}
@@ -747,7 +768,7 @@ public class MPSSim {
 		
 		if(direction == 1) {
 			for (int i=0;i<memCpies_HTD.size();i++) {
-				if(memCpies_HTD.get(i).getStart_time() + memCpies_HTD.get(i).getReal_duration() < current_time) {
+				if(memCpies_HTD.get(i).getStart_time() + memCpies_HTD.get(i).getReal_duration() + 100 < current_time) {
 					memCpies_HTD.remove(i);
 				}
 			}
@@ -755,6 +776,7 @@ public class MPSSim {
 			for (int i=0;i<memCpies_DTH.size();i++) {
 				if(memCpies_DTH.get(i).getStart_time() + memCpies_DTH.get(i).getReal_duration() < current_time) {
 					memCpies_DTH.remove(i);
+//					complete_query(memCpies_DTH.get(i));
 				}
 			}			
 		}
@@ -820,6 +842,73 @@ public class MPSSim {
 		return 1.0f;
 	}
 	
+	void complete_query(Kernel kernel) {
+		if (issuingQueries.get(kernel.getQuery_type()).getKernelQueue()
+				.isEmpty()) {
+			/*
+			 * 7. set the finish time (global time) of the query
+			 */
+			issuingQueries.get(kernel.getQuery_type()).setEnd_time(kernel.getEnd_time());
+
+			Query query = issuingQueries.get(kernel.getQuery_type());
+			// remove the finished query from the issue list
+			/*
+			 * 8. if the target query, save the finished query to a list
+			 */
+//			if (query.getQuery_type() < targetQueries.size()) {
+				finishedQueries.get(query.getQuery_type()).add(query);
+//			}
+			/*
+			 * 9. instead of removing the finished query from the issue list
+			 * mark the indicator of the corresponding issuing slot as
+			 * invalid
+			 */
+			// issuingQueries.remove(kernel.getQuery_type());
+			issueIndicator.set(kernel.getQuery_type(), 0);
+			/*
+			 * 10. add the same type of query to the issue list unless the
+			 * query queue is empty for that type of query
+			 */
+			float duration = kernel.getEnd_time() - issuingQueries.get(kernel.getQuery_type()).getStart_time();
+//			System.out.println("Duration is: "+ duration+", end is: "+kernel.getEnd_time()+", start is: "+issuingQueries.get(kernel.getQuery_type()).getStart_time());
+			
+			if (kernel.getQuery_type() < targetQueries.size()) {
+				if (!targetQueries.get(kernel.getQuery_type()).isEmpty()) {
+					Query comingQuery = targetQueries.get(
+							kernel.getQuery_type()).poll();
+					comingQuery.setStart_time(kernel.getEnd_time());
+					issuingQueries.set(kernel.getQuery_type(), comingQuery);
+					issueIndicator.set(kernel.getQuery_type(), 1);
+					
+					comingQuery.setQuery_id(query_id.get(kernel.getQuery_type()));
+					query_id.set(kernel.getQuery_type(), comingQuery.getQuery_id()+1);
+					issuingQueries.get(kernel.getQuery_type()).setReady_time(kernel.getEnd_time()+target_load.get(comingQuery.getQuery_id())-duration+slacks.get(kernel.getQuery_type()));
+					issuingQueries.get(kernel.getQuery_type()).setStart_time(kernel.getEnd_time()+target_load.get(comingQuery.getQuery_id())-duration+slacks.get(kernel.getQuery_type()));
+				} else {
+					COMPLETE_TIME = kernel.getEnd_time();
+					System.out.println("target queries stop at: "+COMPLETE_TIME);
+				}
+			} else {
+				if (!backgroundQueries.get(
+						kernel.getQuery_type() - targetQueries.size())
+						.isEmpty()) {						
+					Query comingQuery = backgroundQueries.get(
+							kernel.getQuery_type() - targetQueries.size())
+							.poll();
+					
+					issuingQueries.set(kernel.getQuery_type(), comingQuery);
+					issueIndicator.set(kernel.getQuery_type(), 1);
+					
+					comingQuery.setQuery_id(query_id.get(kernel.getQuery_type()));
+					query_id.set(kernel.getQuery_type(), comingQuery.getQuery_id()+1);
+					
+					issuingQueries.get(kernel.getQuery_type()).setReady_time(kernel.getEnd_time()+bg_load.get(comingQuery.getQuery_id())-duration+slacks.get(kernel.getQuery_type()));
+					issuingQueries.get(kernel.getQuery_type()).setStart_time(kernel.getEnd_time()+bg_load.get(comingQuery.getQuery_id())-duration+slacks.get(kernel.getQuery_type()));
+				}
+			}
+		}
+	}
+	
 	/**
 	 * 
 	 */
@@ -846,10 +935,11 @@ public class MPSSim {
 			}
 /*			
 			if(kernel.getQuery_type() == 0)
-				System.out.println(kernel.getExecution_order()+" : start: "+kernel.getStart_time()+"~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~, duration: "+kernel.getReal_duration());
-			else 
-				System.out.println(kernel.getExecution_order()+" : start: "+kernel.getStart_time()+", duration:"+kernel.getReal_duration()+", client: "+kernel.getQuery_type());
+				System.out.println(kernel.getExecution_order()+" : start: "+kernel.getStart_time()+", end: "+kernel.getEnd_time()+"~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~, duration: "+kernel.getReal_duration());
+//			else 
+//				System.out.println(kernel.getExecution_order()+" : start: "+kernel.getStart_time()+", duration:"+kernel.getReal_duration()+", client: "+kernel.getQuery_type());
 */
+			
 //			System.out.println(kernel.getQuery_type()+" : "+kernel.getExecution_order());
 			/*
 			 * 3. mark the query as not sequential constrained to issue kernel
@@ -873,34 +963,66 @@ public class MPSSim {
 			 */
 			issuingQueries.get(kernel.getQuery_type()).getFinishedKernelQueue()
 					.offer(kernel);
-			/*
-			 * 6. if all the kernels from the query have been finished
-			 */
+
+//Launch the next memcpy tasks
+			Kernel k=null;
+			if(kernel.getOccupancy() != 0 && issuingQueries.get(kernel.getQuery_type()).getKernelQueue().peek() != null && 
+					issuingQueries.get(kernel.getQuery_type()).getKernelQueue().peek().getOccupancy() == 0) {
+		
+					k = issuingQueries.get(kernel.getQuery_type()).getKernelQueue().poll();
+					k.setReal_duration(k.getDuration());  	//Initialize the duration		
+					if(k.getDirection() == 1)
+						memCpies_HTD.add(k);								//Add to the memcpy host to device queue
+					else if (k.getDirection() == 2)
+						memCpies_DTH.add(k);								//Add to the memcpy device to host queue
+					
+					k.setStart_time(issuingQueries.get(kernel.getQuery_type()).getReady_time());
+					k.setReal_duration(calMemcpyDuration(k, issuingQueries.get(kernel.getQuery_type()).getReady_time(), k.getDirection()));		//Update the duration of the kernel
+					
+					k.setEnd_time(k.getStart_time()+k.getReal_duration());
+					
+					if(k.getDirection() == 2) {
+						issuingQueries.get(k.getQuery_type()).setEnd_time(k.getEnd_time());
+/*						
+						if(k.getQuery_type() == 0)
+							System.out.println(k.getExecution_order()+" : start: "+k.getStart_time()+", end: "+k.getEnd_time()+"~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~, duration: "+k.getReal_duration());
+//						else 
+//							System.out.println(k.getExecution_order()+" : start: "+k.getStart_time()+", duration:"+k.getReal_duration()+", client: "+k.getQuery_type());
+*/
+					}
+			}
+
+///*
+			// 6. if all the kernels from the query have been finished
+			 
 			if (issuingQueries.get(kernel.getQuery_type()).getKernelQueue()
 					.isEmpty()) {
-				/*
-				 * 7. set the finish time (global time) of the query
-				 */
-				issuingQueries.get(kernel.getQuery_type()).setEnd_time(kernel.getEnd_time());
+				
+				 // 7. set the finish time (global time) of the query
+				 
+//				issuingQueries.get(kernel.getQuery_type()).setEnd_time(kernel.getEnd_time());
+//add the duration of the last memcpy from GPU to CPU				
+//				issuingQueries.get(kernel.getQuery_type()).setEnd_time(kernel.getEnd_time()+15.4f);
+
 				Query query = issuingQueries.get(kernel.getQuery_type());
 				// remove the finished query from the issue list
-				/*
-				 * 8. if the target query, save the finished query to a list
-				 */
+				
+				 // 8. if the target query, save the finished query to a list
+				 
 //				if (query.getQuery_type() < targetQueries.size()) {
 					finishedQueries.get(query.getQuery_type()).add(query);
 //				}
-				/*
-				 * 9. instead of removing the finished query from the issue list
-				 * mark the indicator of the corresponding issuing slot as
-				 * invalid
-				 */
+				
+				 // 9. instead of removing the finished query from the issue list
+				 // mark the indicator of the corresponding issuing slot as
+				 // invalid
+				 //
 				// issuingQueries.remove(kernel.getQuery_type());
 				issueIndicator.set(kernel.getQuery_type(), 0);
-				/*
-				 * 10. add the same type of query to the issue list unless the
-				 * query queue is empty for that type of query
-				 */
+				
+				 // 10. add the same type of query to the issue list unless the
+				 // query queue is empty for that type of query
+				 
 				float duration = kernel.getEnd_time() - issuingQueries.get(kernel.getQuery_type()).getStart_time();
 //				System.out.println("Duration is: "+ duration+", end is: "+kernel.getEnd_time()+", start is: "+issuingQueries.get(kernel.getQuery_type()).getStart_time());
 				
@@ -914,8 +1036,6 @@ public class MPSSim {
 						
 						comingQuery.setQuery_id(query_id.get(kernel.getQuery_type()));
 						query_id.set(kernel.getQuery_type(), comingQuery.getQuery_id()+1);
-//						issuingQueries.get(kernel.getQuery_type()).setReady_time(kernel.getEnd_time()+slacks.get(kernel.getQuery_type()));
-//						issuingQueries.get(kernel.getQuery_type()).setStart_time(kernel.getEnd_time()+slacks.get(kernel.getQuery_type()));
 						issuingQueries.get(kernel.getQuery_type()).setReady_time(kernel.getEnd_time()+target_load.get(comingQuery.getQuery_id())-duration+slacks.get(kernel.getQuery_type()));
 						issuingQueries.get(kernel.getQuery_type()).setStart_time(kernel.getEnd_time()+target_load.get(comingQuery.getQuery_id())-duration+slacks.get(kernel.getQuery_type()));
 					//	System.out.println("end time: "+kernel.getEnd_time()+", duration: "+duration+", start: "+ issuingQueries.get(kernel.getQuery_type()).getStart_time()+", load: "+target_load.get(comingQuery.getQuery_id()));
@@ -938,8 +1058,6 @@ public class MPSSim {
 						comingQuery.setQuery_id(query_id.get(kernel.getQuery_type()));
 						query_id.set(kernel.getQuery_type(), comingQuery.getQuery_id()+1);
 						
-//						issuingQueries.get(kernel.getQuery_type()).setReady_time(kernel.getEnd_time()+slacks.get(kernel.getQuery_type()));
-//						issuingQueries.get(kernel.getQuery_type()).setStart_time(kernel.getEnd_time()+slacks.get(kernel.getQuery_type()));
 						issuingQueries.get(kernel.getQuery_type()).setReady_time(kernel.getEnd_time()+bg_load.get(comingQuery.getQuery_id())-duration+slacks.get(kernel.getQuery_type()));
 						issuingQueries.get(kernel.getQuery_type()).setStart_time(kernel.getEnd_time()+bg_load.get(comingQuery.getQuery_id())-duration+slacks.get(kernel.getQuery_type()));
 					//	System.out.println("**********end time: "+kernel.getEnd_time()+", duration: "+duration+", start: "+ issuingQueries.get(kernel.getQuery_type()).getStart_time()+", load: "+bg_load.get(comingQuery.getQuery_id()));
@@ -948,6 +1066,7 @@ public class MPSSim {
 //				if (kernel.getQuery_type() >= targetQueries.size())
 //					System.out.println("background kernel: "+kernel.getDuration());
 			}
+//*/
 			/*
 			 * 11. select the kernel to be issued to the queue
 			 */
@@ -1166,8 +1285,8 @@ public class MPSSim {
 			try {
 				BufferedWriter bw = new BufferedWriter(new FileWriter(
 						MPSSim.RESULT_PATH
-								+ "sim-"+finishedQueries.get(i).peek().getQuery_name()
-								+ "-" + n_bg + "-" + bg_name + ".csv", true));
+								+ finishedQueries.get(i).peek().getQuery_name()
+								+ "-" + n_bg + "-" + bg_name + "-sim.csv", true));
 
 				for (Query finishedQuery : finishedQueries.get(i)) {
 					float real_latency;
@@ -1307,9 +1426,9 @@ public class MPSSim {
 		} else if(query_name.equals("pos")) {
 			return 0.15f;
 		} else if(query_name.equals("ner")) {
-			return 0.05f;
+			return 0.15f;
 		} else if(query_name.equals("stemmer")) {
-			return 0.05f+randQuery.nextInt(1);
+			return 0.15f;
 		} else if(query_name.equals("asr")) {
 			return 0.05f;
 		} else if(query_name.equals("gmm")) {
@@ -1327,14 +1446,14 @@ public class MPSSim {
 		} else if(query_name.equals("imc")) {
 			return 1700.0f;
 		} else if(query_name.equals("face")) {
-			return 60.0f+randQuery.nextInt(6);
-//			return 1.46f;
+			return 60.0f+randQuery.nextInt(1);
 		} else if(query_name.equals("pos")) {
-			return 20.0f+randQuery.nextInt(2);
+			return 20.0f+randQuery.nextInt(1);
 		} else if(query_name.equals("ner")) {
 			return 10.0f+randQuery.nextInt(1);
 		} else if(query_name.equals("stemmer")) {
-			return 500.0f+randQuery.nextInt(50);
+//			return 500.0f+randQuery.nextInt(50);
+			return 50.0f+randQuery.nextInt(30);
 		} else if(query_name.equals("asr")) {
 			return 1420.0f;
 		} else if(query_name.equals("gmm")) {
@@ -1354,9 +1473,9 @@ public class MPSSim {
 		} else if(query_name.equals("face")) {
 			return 340.0f;
 		} else if(query_name.equals("pos")) {
-			return 6.0f;
-		} else if(query_name.equals("ner")) {
 			return 7.5f;
+		} else if(query_name.equals("ner")) {
+			return 6.0f;
 		} else if(query_name.equals("stemmer")) {
 			return 46.0f;
 		} else if(query_name.equals("asr")) {

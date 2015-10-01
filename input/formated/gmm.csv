@@ -1,0 +1,4 @@
+id,start(ms),duration(ms),warps,t-occupancy,sms,size,pinned,cudaMalloc,cudaFree,direction
+0,0,0.001056,0,0,0,128,0,0,0,1
+1,0.042,4.416022,2560,0.625,13,0,0,0,0,0
+2,4.464,0.055008,0,0,0,327680,0,0,0,2

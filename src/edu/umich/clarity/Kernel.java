@@ -23,6 +23,7 @@ public class Kernel {
 	private int cuda_free;
 	private int pinned;
 	private int direction;			//data transfer direction if the kernel is a memcpy kernel. 0: not memcpy, 1: host to device, 2: device to host
+	private long overlapped_warps;	//warps executed during kernel overlapping time
 	
 	public Kernel() {
 		this.start_time = 0.0f;
@@ -163,5 +164,13 @@ public class Kernel {
 
 	public void setDirection(int direction) {
 		this.direction = direction;
+	}
+
+	public long getOverlapped_warps() {
+		return overlapped_warps;
+	}
+
+	public void setOverlapped_warps(long overlapped_warps) {
+		this.overlapped_warps = overlapped_warps;
 	}
 }

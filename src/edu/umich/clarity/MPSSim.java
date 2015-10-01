@@ -629,14 +629,16 @@ public class MPSSim {
 							if(kernel.getOccupancy()!=0) {
 								overlapped = kernel.getWarps_per_batch()/15 * left_sm;
 								org_batches = (int) Math.ceil(kernel.getWarps()/(float)(kernel.getWarps_per_batch()));
-						
+								kernel.setOverlapped_warps(overlapped);
+								
 //								batches = (int) Math.ceil( (kernel.getWarps()-overlapped)/(float)(kernel.getWarps_per_batch()));
 								batches = 1 + (int) Math.ceil( (kernel.getWarps()-overlapped)/(float)(kernel.getWarps_per_batch()));						
 //								batches = (int) Math.ceil(kernel.getWarps()/(float)(kernel.getWarps_per_batch()));
 								kernel.setReal_duration(kernel.getDuration()*batches/org_batches);
 							}
 					
-							else kernel.setReal_duration(kernel.getDuration());						
+//							else kernel.setReal_duration(kernel.getDuration());
+							
 						}
 						
 //						if(kernel.getQuery_type() >=1)
@@ -708,12 +710,13 @@ public class MPSSim {
 			}
 		}
 		
-		ret = kernel.getDuration();
-		
-		if(active_memcpies.size() >=1 && active_memcpies.size() <= 2) {
-			ret =  kernel.getDuration() * 1.0f;
+		if(active_memcpies.size() == 1) {
+			ret = kernel.getDuration();
+		}
+		else if(active_memcpies.size() >= 2 && active_memcpies.size() <= 4) {
+			ret =  kernel.getDuration() * (1.0f + 0.05f * active_memcpies.size());
 		} else {
-			float slow_down = (float)(active_memcpies.size()) / 3.0f;
+			float slow_down = (float)(active_memcpies.size()) / 4.0f;
 			for(int i=0;i<active_memcpies.size();i++) {
 				if(direction == 1) {
 //					ret = ret/3.0f + kernel.getDuration();
@@ -968,7 +971,7 @@ public class MPSSim {
 				start_time = kernel.getEnd_time();
 				int batches = (int) Math.ceil(kernel.getWarps()/(float)(kernel.getWarps_per_batch()));
 				if(batches !=0 ) overlapping_time = kernel.getDuration()/batches;
-				left_sm = 15 - (int) Math.ceil( (kernel.getWarps()-(batches-1)*kernel.getWarps_per_batch())/(kernel.getWarps_per_batch()/15) );
+				left_sm = 15 - (int) Math.ceil( (kernel.getWarps() -(batches-1)*kernel.getWarps_per_batch())/(kernel.getWarps_per_batch()/15) );
 //				System.out.println("left over is: "+left_sm);
 //				if(kernel.getQuery_type()==0)
 //					System.out.println("kernel duration: "+kernel.getDuration()+", kernel batches: "+batches+", the expected overlapping time is: "+overlapping_time+", kernel is: "+kernel.getQuery_type()+", kernel id: "+kernel.getExecution_order());
@@ -1067,7 +1070,7 @@ public class MPSSim {
 		
 		int t_variation=getStartVariation(args[0]);
 		start_time = random.nextInt(t_variation);
-		target_start_point = 10000.0f + getInitTime(args[0]) + getWarmupTime(args[0]) + start_time;		
+		target_start_point = 10000.0f + getInitTime(args[0]) + getWarmupTime(args[0], n_bg) + start_time;		
 		System.out.println("TARGET: start time is "+target_start_point);
 		
 //		flag = random2.nextFloat();
@@ -1076,7 +1079,7 @@ public class MPSSim {
 		for(int i=0;i<n_bg;i++) {
 			start_time = random.nextInt(t_variation);
 //			flag = random2.nextFloat();
-			bg_start_points.add(i*1000.0f + getInitTime(args[1]) + getWarmupTime(args[1]) + start_time);
+			bg_start_points.add(i*1000.0f + getInitTime(args[1]) + getWarmupTime(args[1], i) + start_time);
 
 			System.out.println("BG: start time is "+bg_start_points.get(i));
 		}
@@ -1168,7 +1171,7 @@ public class MPSSim {
 
 				for (Query finishedQuery : finishedQueries.get(i)) {
 					float real_latency;
-
+///*
 					if(finishedQueries.get(i).peek().getQuery_name().equals("imc")) {
 						real_latency = finishedQuery.getEnd_time()-finishedQuery.getStart_time()+1.2f;
 					}
@@ -1179,8 +1182,8 @@ public class MPSSim {
 						real_latency = finishedQuery.getEnd_time()-finishedQuery.getStart_time()+0.5f;
 //						real_latency = finishedQuery.getEnd_time()-finishedQuery.getStart_time();
 					}
-					
-					real_latency = finishedQuery.getEnd_time()-finishedQuery.getStart_time();
+//*/					
+//					real_latency = finishedQuery.getEnd_time()-finishedQuery.getStart_time();
 					
 					accumulative_latency += real_latency;
 					
@@ -1298,7 +1301,7 @@ public class MPSSim {
 		if(query_name.equals("dig")) {
 			return 0.3f;
 		} else if(query_name.equals("imc")) {
-			return 1.0f;
+			return 0.15f+randQuery.nextInt(2);
 		} else if(query_name.equals("face")) {
 			return 0.15f;
 		} else if(query_name.equals("pos")) {
@@ -1306,7 +1309,7 @@ public class MPSSim {
 		} else if(query_name.equals("ner")) {
 			return 0.05f;
 		} else if(query_name.equals("stemmer")) {
-			return 0.05f;
+			return 0.05f+randQuery.nextInt(1);
 		} else if(query_name.equals("asr")) {
 			return 0.05f;
 		} else if(query_name.equals("gmm")) {
@@ -1322,16 +1325,16 @@ public class MPSSim {
 		if(query_name.equals("dig")) {
 			return 800.0f;
 		} else if(query_name.equals("imc")) {
-			return 1800.0f;
+			return 1700.0f;
 		} else if(query_name.equals("face")) {
-			return 60.0f;
+			return 60.0f+randQuery.nextInt(6);
 //			return 1.46f;
 		} else if(query_name.equals("pos")) {
-			return 20.0f;
+			return 20.0f+randQuery.nextInt(2);
 		} else if(query_name.equals("ner")) {
-			return 10.0f;
+			return 10.0f+randQuery.nextInt(1);
 		} else if(query_name.equals("stemmer")) {
-			return 230.0f;
+			return 500.0f+randQuery.nextInt(50);
 		} else if(query_name.equals("asr")) {
 			return 1420.0f;
 		} else if(query_name.equals("gmm")) {
@@ -1341,13 +1344,13 @@ public class MPSSim {
 		return 1.0f;
 	}
 	
-	private static float getWarmupTime(String query_name) {
+	private static float getWarmupTime(String query_name, int location) {
 		if(Detail)	System.out.println(query_name);
 		
 		if(query_name.equals("dig")) {
-			return 45.0f+randQuery.nextInt(15);
+			return 45.0f;
 		} else if(query_name.equals("imc")) {
-			return 180.0f+randQuery.nextInt(30);
+			return 180.0f;
 		} else if(query_name.equals("face")) {
 			return 340.0f;
 		} else if(query_name.equals("pos")) {
@@ -1395,7 +1398,7 @@ public class MPSSim {
 		if(Detail)	System.out.println(query_name);
 		
 		if(query_name.equals("dig")) {
-			return 30;
+			return 50;
 		} else if(query_name.equals("imc")) {
 			return 200;
 		} else if(query_name.equals("face")) {

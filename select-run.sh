@@ -3,7 +3,7 @@
 #cp bin/edu/umich/clarity/sim.jar ./
 
 #n_bg=(1 2 4 6 8)
-n_bg=(8)
+n_bg=(6)
 
 tg=$1
 bg=$2
@@ -16,7 +16,7 @@ for b in ${n_bg[@]}; do
     echo "end_to_end" > simulated/sim-${tg}-${n_bg}-${bg}.csv
         for((i=0;i<50;i++))
         do
-            java -jar sim.jar ${tg} ${bg} 1 ${b} 200 10000
+            java -jar sim.jar ${tg} ${bg} 1 ${b} 200 2000
         done
 done
 

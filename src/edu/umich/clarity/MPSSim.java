@@ -717,9 +717,11 @@ public class MPSSim {
 			ret = kernel.getDuration();
 			slow_down = 1.0f;
 		}
-		else if(active_memcpies.size() >= 2 && active_memcpies.size() <= 4) {			
-			ret =  kernel.getDuration() * (1.0f + 0.05f * active_memcpies.size());
-			slow_down = 1.0f + 0.05f *active_memcpies.size();
+		else if(active_memcpies.size() >= 2 && active_memcpies.size() < 4) {			
+//			ret =  kernel.getDuration() * (1.0f + 0.05f * active_memcpies.size());
+//			slow_down = 1.0f + 0.05f *active_memcpies.size();
+			ret =  kernel.getDuration() * (1.0f+0.03f*active_memcpies.size());
+			slow_down = 1.0f+0.03f*active_memcpies.size();			
 		} else {
 			slow_down = 1.0f + ((active_memcpies.size())/4)*0.3f;
 //			slow_down = (float)(active_memcpies.size()) / 5.0f;
@@ -796,7 +798,8 @@ public class MPSSim {
 		
 		for(Kernel k : cudaMallocs) {
 			float d = Math.max(1.0f, k.getReal_duration());
-			if(k.getStart_time()+d >= current_time + kernel.getDuration()) {
+			if(k.getStart_time()+d >= current_time) {
+//			if(k.getStart_time()+d >= current_time + kernel.getDuration()) {
 				active_allocs.add(new Integer(cudaMallocs.indexOf(k)));	
 //				System.out.println("added~~~~~~ start at: "+k.getStart_time()+", curent time: "+current_time);
 			}
@@ -808,7 +811,6 @@ public class MPSSim {
 			for(int i=0;i<active_allocs.size();i++) {
 //				ret = (4.5f) * active_allocs.size();	//calculate new duration
 				ret = randQuery.nextFloat()*(8.0f) * active_allocs.size();	//calculate new duration
-//				ret = Math.max(ret, 2.0f * active_allocs.size());
 				
 				float delta_time = ret - cudaMallocs.get(active_allocs.get(i)).getReal_duration();
 				
@@ -819,11 +821,10 @@ public class MPSSim {
 				issuingQueries.get(cudaMallocs.get(active_allocs.get(i)).getQuery_type()).setReady_time(
 						issuingQueries.get(cudaMallocs.get(active_allocs.get(i)).getQuery_type()).getReady_time() + delta_time);
 			}
-
 		}
 		
 		for (int i=0;i<cudaMallocs.size();i++) {
-			if(cudaMallocs.get(i).getStart_time() + 100 < current_time) {
+			if(cudaMallocs.get(i).getStart_time() + 200 < current_time) {
 				cudaMallocs.remove(i);
 			}
 		}

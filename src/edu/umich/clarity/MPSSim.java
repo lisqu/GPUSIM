@@ -723,7 +723,6 @@ public class MPSSim {
 		} else {
 			slow_down = 1.0f + ((active_memcpies.size())/4)*0.3f;
 //			slow_down = (float)(active_memcpies.size()) / 5.0f;
-//			slow_down = (float)(active_memcpies.size()-1) / 4.0f;
 //			System.out.println("the memcpy is delayed~~~~~~~~~~~~~~~~~~");
 		}
 //		slow_down = (float) (1.0f + Math.ceil(((active_memcpies.size()-1)/3))*0.4f);
@@ -776,7 +775,6 @@ public class MPSSim {
 			for (int i=0;i<memCpies_DTH.size();i++) {
 				if(memCpies_DTH.get(i).getStart_time() + memCpies_DTH.get(i).getReal_duration() < current_time) {
 					memCpies_DTH.remove(i);
-//					complete_query(memCpies_DTH.get(i));
 				}
 			}			
 		}
@@ -790,7 +788,7 @@ public class MPSSim {
 		return ret;
 	}
 
-	//Todo: Calculate the impact of cudaMalloc on the latency	
+	//Todo: Calculate the impact of cudaMalloc on the latency, not a correct method	
 	public float calMallocDuration(Kernel kernel, float current_time) {
 		float ret = 0.0f;
 		
@@ -842,72 +840,6 @@ public class MPSSim {
 		return 1.0f;
 	}
 	
-	void complete_query(Kernel kernel) {
-		if (issuingQueries.get(kernel.getQuery_type()).getKernelQueue()
-				.isEmpty()) {
-			/*
-			 * 7. set the finish time (global time) of the query
-			 */
-			issuingQueries.get(kernel.getQuery_type()).setEnd_time(kernel.getEnd_time());
-
-			Query query = issuingQueries.get(kernel.getQuery_type());
-			// remove the finished query from the issue list
-			/*
-			 * 8. if the target query, save the finished query to a list
-			 */
-//			if (query.getQuery_type() < targetQueries.size()) {
-				finishedQueries.get(query.getQuery_type()).add(query);
-//			}
-			/*
-			 * 9. instead of removing the finished query from the issue list
-			 * mark the indicator of the corresponding issuing slot as
-			 * invalid
-			 */
-			// issuingQueries.remove(kernel.getQuery_type());
-			issueIndicator.set(kernel.getQuery_type(), 0);
-			/*
-			 * 10. add the same type of query to the issue list unless the
-			 * query queue is empty for that type of query
-			 */
-			float duration = kernel.getEnd_time() - issuingQueries.get(kernel.getQuery_type()).getStart_time();
-//			System.out.println("Duration is: "+ duration+", end is: "+kernel.getEnd_time()+", start is: "+issuingQueries.get(kernel.getQuery_type()).getStart_time());
-			
-			if (kernel.getQuery_type() < targetQueries.size()) {
-				if (!targetQueries.get(kernel.getQuery_type()).isEmpty()) {
-					Query comingQuery = targetQueries.get(
-							kernel.getQuery_type()).poll();
-					comingQuery.setStart_time(kernel.getEnd_time());
-					issuingQueries.set(kernel.getQuery_type(), comingQuery);
-					issueIndicator.set(kernel.getQuery_type(), 1);
-					
-					comingQuery.setQuery_id(query_id.get(kernel.getQuery_type()));
-					query_id.set(kernel.getQuery_type(), comingQuery.getQuery_id()+1);
-					issuingQueries.get(kernel.getQuery_type()).setReady_time(kernel.getEnd_time()+target_load.get(comingQuery.getQuery_id())-duration+slacks.get(kernel.getQuery_type()));
-					issuingQueries.get(kernel.getQuery_type()).setStart_time(kernel.getEnd_time()+target_load.get(comingQuery.getQuery_id())-duration+slacks.get(kernel.getQuery_type()));
-				} else {
-					COMPLETE_TIME = kernel.getEnd_time();
-					System.out.println("target queries stop at: "+COMPLETE_TIME);
-				}
-			} else {
-				if (!backgroundQueries.get(
-						kernel.getQuery_type() - targetQueries.size())
-						.isEmpty()) {						
-					Query comingQuery = backgroundQueries.get(
-							kernel.getQuery_type() - targetQueries.size())
-							.poll();
-					
-					issuingQueries.set(kernel.getQuery_type(), comingQuery);
-					issueIndicator.set(kernel.getQuery_type(), 1);
-					
-					comingQuery.setQuery_id(query_id.get(kernel.getQuery_type()));
-					query_id.set(kernel.getQuery_type(), comingQuery.getQuery_id()+1);
-					
-					issuingQueries.get(kernel.getQuery_type()).setReady_time(kernel.getEnd_time()+bg_load.get(comingQuery.getQuery_id())-duration+slacks.get(kernel.getQuery_type()));
-					issuingQueries.get(kernel.getQuery_type()).setStart_time(kernel.getEnd_time()+bg_load.get(comingQuery.getQuery_id())-duration+slacks.get(kernel.getQuery_type()));
-				}
-			}
-		}
-	}
 	
 	/**
 	 * 
@@ -1426,7 +1358,7 @@ public class MPSSim {
 		} else if(query_name.equals("pos")) {
 			return 0.15f;
 		} else if(query_name.equals("ner")) {
-			return 0.15f;
+			return randQuery.nextFloat()*2;
 		} else if(query_name.equals("stemmer")) {
 			return 0.15f;
 		} else if(query_name.equals("asr")) {
@@ -1450,7 +1382,7 @@ public class MPSSim {
 		} else if(query_name.equals("pos")) {
 			return 20.0f+randQuery.nextInt(1);
 		} else if(query_name.equals("ner")) {
-			return 10.0f+randQuery.nextInt(1);
+			return 8.0f+randQuery.nextFloat()*2;
 		} else if(query_name.equals("stemmer")) {
 //			return 500.0f+randQuery.nextInt(50);
 			return 50.0f+randQuery.nextInt(30);
@@ -1475,7 +1407,7 @@ public class MPSSim {
 		} else if(query_name.equals("pos")) {
 			return 7.5f;
 		} else if(query_name.equals("ner")) {
-			return 6.0f;
+			return 5.0f;
 		} else if(query_name.equals("stemmer")) {
 			return 46.0f;
 		} else if(query_name.equals("asr")) {

@@ -1594,7 +1594,6 @@ public class MPSSim {
 					bg_name=config.getQueryName();
 					backgroundConfs.add(config);
 					System.out.println("Background QueryName: "+config.getQueryName()+", Client NUm: "+config.getClientNum() + ", Query num: "+config.getQueryNum());
-
 				}
 			}
 			/*

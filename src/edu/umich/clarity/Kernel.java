@@ -24,6 +24,8 @@ public class Kernel {
 	private int pinned;
 	private int direction;			//data transfer direction if the kernel is a memcpy kernel. 0: not memcpy, 1: host to device, 2: device to host
 	private long overlapped_warps;	//warps executed during kernel overlapping time
+	private float nonfull_time;		//the time when the kernel cannot take all the SMs
+	private int sms;				//the number of SMs occupied in the last part.
 	
 	public Kernel() {
 		this.start_time = 0.0f;
@@ -172,5 +174,21 @@ public class Kernel {
 
 	public void setOverlapped_warps(long overlapped_warps) {
 		this.overlapped_warps = overlapped_warps;
+	}
+
+	public float getNonfull_time() {
+		return nonfull_time;
+	}
+
+	public void setNonfull_time(float nonfull_time) {
+		this.nonfull_time = nonfull_time;
+	}
+
+	public int getSms() {
+		return sms;
+	}
+
+	public void setSms(int sms) {
+		this.sms = sms;
 	}
 }

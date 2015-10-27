@@ -15,6 +15,7 @@ import java.util.Map;
 import java.util.PriorityQueue;
 import java.util.Queue;
 import java.util.Random;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import com.opencsv.CSVReader;
 
@@ -34,6 +35,8 @@ public class MPSSim {
 	public static final int COMPUTE_SLOTS = 15;
 	// there is a time slack before next kernel can be issued
 	// TODO not used for now
+	public static AtomicInteger AVAIL_SLOTS = new AtomicInteger(15);
+	
 	public static final float KERNEL_SLACK = 0.0f;
 	// the location of kernel profiles
 	public static final String PROFILE_PATH = "input/formated/";
@@ -72,9 +75,10 @@ public class MPSSim {
 	
 	private ArrayList<Kernel> cudaMallocs = new ArrayList<Kernel>();
 	private ArrayList<Kernel> cudaFrees = new ArrayList<Kernel>();
+	private ArrayList<Kernel> activeKernel = new ArrayList<Kernel>();
 	
 	public static float COMPLETE_TIME;	//The complete time of target queries
-	
+	public static int COMPLETE = 0;
 	public static int n_bg;
 	public static int n_tg;
 	public static String bg_name;
@@ -613,7 +617,6 @@ public class MPSSim {
 						
 /*****Todo: manage cudaFree contention*******/
 						if(kernel.getCuda_free() == 1) {
-//							kernel.setDuration(1.0f);  	//Initialize the duration
 							kernel.setReal_duration(1.0f);  	//Initialize the duration
 							cudaFrees.add(kernel);								//Add to the memcpy queue
 							kernel.setReal_duration(calFreeDuration(kernel, st));		//Update the duration of the kernel							
@@ -632,13 +635,17 @@ public class MPSSim {
 								kernel.setOverlapped_warps(overlapped);
 								
 //								batches = (int) Math.ceil( (kernel.getWarps()-overlapped)/(float)(kernel.getWarps_per_batch()));
-								batches = 1 + (int) Math.ceil( (kernel.getWarps()-overlapped)/(float)(kernel.getWarps_per_batch()));						
+								batches = 1 + (int) Math.ceil( (kernel.getWarps()-overlapped)/(float)(kernel.getWarps_per_batch()));
+//								if(batches == 2)	batches = 1;
 //								batches = (int) Math.ceil(kernel.getWarps()/(float)(kernel.getWarps_per_batch()));
 								kernel.setReal_duration(kernel.getDuration()*batches/org_batches);
+								
+// Mark the time range where the current kernel does not occupy all the SMs, calculates the number of SMs used in that range								
+								kernel.setNonfull_time(kernel.getStart_time()+kernel.getDuration()*(batches-1)/batches);
+								kernel.setSms((int) Math.ceil( (kernel.getWarps() -(batches-1)*kernel.getWarps_per_batch())/(kernel.getWarps_per_batch()/15) ));
+								activeKernel.add(kernel);							
 							}
-					
-//							else kernel.setReal_duration(kernel.getDuration());
-							
+							else kernel.setReal_duration(kernel.getDuration());							
 						}
 						
 //						if(kernel.getQuery_type() >=1)
@@ -869,8 +876,8 @@ public class MPSSim {
 /*			
 			if(kernel.getQuery_type() == 0)
 				System.out.println(kernel.getExecution_order()+" : start: "+kernel.getStart_time()+", end: "+kernel.getEnd_time()+"~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~, duration: "+kernel.getReal_duration());
-//			else 
-//				System.out.println(kernel.getExecution_order()+" : start: "+kernel.getStart_time()+", duration:"+kernel.getReal_duration()+", client: "+kernel.getQuery_type());
+			else 
+				System.out.println("----"+kernel.getExecution_order()+" : start: "+kernel.getStart_time()+", duration:"+kernel.getReal_duration()+", client: "+kernel.getQuery_type());
 */
 			
 //			System.out.println(kernel.getQuery_type()+" : "+kernel.getExecution_order());
@@ -894,8 +901,7 @@ public class MPSSim {
 			 * 5. add the finished kernel back to the query's finished kernel
 			 * queue
 			 */
-			issuingQueries.get(kernel.getQuery_type()).getFinishedKernelQueue()
-					.offer(kernel);
+			issuingQueries.get(kernel.getQuery_type()).getFinishedKernelQueue().offer(kernel);
 
 //Launch the next memcpy tasks
 			Kernel k=null;
@@ -928,8 +934,7 @@ public class MPSSim {
 ///*
 			// 6. if all the kernels from the query have been finished
 			 
-			if (issuingQueries.get(kernel.getQuery_type()).getKernelQueue()
-					.isEmpty()) {
+			if (issuingQueries.get(kernel.getQuery_type()).getKernelQueue().isEmpty()) {
 				
 				 // 7. set the finish time (global time) of the query
 				 
@@ -969,20 +974,25 @@ public class MPSSim {
 						
 						comingQuery.setQuery_id(query_id.get(kernel.getQuery_type()));
 						query_id.set(kernel.getQuery_type(), comingQuery.getQuery_id()+1);
-						issuingQueries.get(kernel.getQuery_type()).setReady_time(kernel.getEnd_time()+target_load.get(comingQuery.getQuery_id())-duration+slacks.get(kernel.getQuery_type()));
-						issuingQueries.get(kernel.getQuery_type()).setStart_time(kernel.getEnd_time()+target_load.get(comingQuery.getQuery_id())-duration+slacks.get(kernel.getQuery_type()));
+						if(target_load.get(comingQuery.getQuery_id())>duration) {
+							issuingQueries.get(kernel.getQuery_type()).setReady_time(kernel.getEnd_time()+target_load.get(comingQuery.getQuery_id())-duration+slacks.get(kernel.getQuery_type()));
+							issuingQueries.get(kernel.getQuery_type()).setStart_time(kernel.getEnd_time()+target_load.get(comingQuery.getQuery_id())-duration+slacks.get(kernel.getQuery_type()));
 					//	System.out.println("end time: "+kernel.getEnd_time()+", duration: "+duration+", start: "+ issuingQueries.get(kernel.getQuery_type()).getStart_time()+", load: "+target_load.get(comingQuery.getQuery_id()));
+						} else {
+							issuingQueries.get(kernel.getQuery_type()).setReady_time(kernel.getEnd_time()+slacks.get(kernel.getQuery_type()));
+							issuingQueries.get(kernel.getQuery_type()).setStart_time(kernel.getEnd_time()+slacks.get(kernel.getQuery_type()));							
+						}
+						
 					} else {
 						COMPLETE_TIME = kernel.getEnd_time();
 						System.out.println("target queries stop at: "+COMPLETE_TIME);
+						COMPLETE = 1;
 					}
 				} else {
-					if (!backgroundQueries.get(
-							kernel.getQuery_type() - targetQueries.size())
-							.isEmpty()) {						
-						Query comingQuery = backgroundQueries.get(
-								kernel.getQuery_type() - targetQueries.size())
-								.poll();
+					if (!backgroundQueries.get(kernel.getQuery_type() - targetQueries.size()).isEmpty() 
+//							&& COMPLETE == 0
+							) {						
+						Query comingQuery = backgroundQueries.get(kernel.getQuery_type() - targetQueries.size()).poll();
 //						comingQuery.setStart_time(kernel.getEnd_time());
 						
 						issuingQueries.set(kernel.getQuery_type(), comingQuery);
@@ -991,9 +1001,14 @@ public class MPSSim {
 						comingQuery.setQuery_id(query_id.get(kernel.getQuery_type()));
 						query_id.set(kernel.getQuery_type(), comingQuery.getQuery_id()+1);
 						
-						issuingQueries.get(kernel.getQuery_type()).setReady_time(kernel.getEnd_time()+bg_load.get(comingQuery.getQuery_id())-duration+slacks.get(kernel.getQuery_type()));
-						issuingQueries.get(kernel.getQuery_type()).setStart_time(kernel.getEnd_time()+bg_load.get(comingQuery.getQuery_id())-duration+slacks.get(kernel.getQuery_type()));
-					//	System.out.println("**********end time: "+kernel.getEnd_time()+", duration: "+duration+", start: "+ issuingQueries.get(kernel.getQuery_type()).getStart_time()+", load: "+bg_load.get(comingQuery.getQuery_id()));
+						if(bg_load.get(comingQuery.getQuery_id())>duration) {
+							issuingQueries.get(kernel.getQuery_type()).setReady_time(kernel.getEnd_time()+bg_load.get(comingQuery.getQuery_id())-duration+slacks.get(kernel.getQuery_type()));
+							issuingQueries.get(kernel.getQuery_type()).setStart_time(kernel.getEnd_time()+bg_load.get(comingQuery.getQuery_id())-duration+slacks.get(kernel.getQuery_type()));
+					//		System.out.println("**********end time: "+kernel.getEnd_time()+", duration: "+duration+", start: "+ issuingQueries.get(kernel.getQuery_type()).getStart_time()+", load: "+bg_load.get(comingQuery.getQuery_id()));
+						} else {
+							issuingQueries.get(kernel.getQuery_type()).setReady_time(kernel.getEnd_time()+slacks.get(kernel.getQuery_type()));
+							issuingQueries.get(kernel.getQuery_type()).setStart_time(kernel.getEnd_time()+slacks.get(kernel.getQuery_type()));							
+						}
 					}
 				}
 //				if (kernel.getQuery_type() >= targetQueries.size())
@@ -1024,7 +1039,7 @@ public class MPSSim {
 				int batches = (int) Math.ceil(kernel.getWarps()/(float)(kernel.getWarps_per_batch()));
 				if(batches !=0 ) overlapping_time = kernel.getDuration()/batches;
 				left_sm = 15 - (int) Math.ceil( (kernel.getWarps() -(batches-1)*kernel.getWarps_per_batch())/(kernel.getWarps_per_batch()/15) );
-//				System.out.println("left over is: "+left_sm);
+//				System.out.println("left over is: "+left_sm+", start time: "+start_time+", overlappting time is: "+overlapping_time);
 //				if(kernel.getQuery_type()==0)
 //					System.out.println("kernel duration: "+kernel.getDuration()+", kernel batches: "+batches+", the expected overlapping time is: "+overlapping_time+", kernel is: "+kernel.getQuery_type()+", kernel id: "+kernel.getExecution_order());
 			}
@@ -1233,7 +1248,8 @@ public class MPSSim {
 						real_latency = finishedQuery.getEnd_time()-finishedQuery.getStart_time()+0.5f;
 //						real_latency = finishedQuery.getEnd_time()-finishedQuery.getStart_time();
 					}
-//*/					
+//*/				
+//					System.out.println("Query start at: "+finishedQuery.getStart_time()+", end at: "+finishedQuery.getEnd_time());
 //					real_latency = finishedQuery.getEnd_time()-finishedQuery.getStart_time();
 					
 					accumulative_latency += real_latency;
@@ -1422,11 +1438,11 @@ public class MPSSim {
 			case "face": return 340.0f;
 			case "pos": return 7.5f;
 			case "ner": return 5.0f;
-//Sirius Suite~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~			
+//Sirius Suite~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~			
 			case "asr": return 90.0f;
 			case "gmm": return 230.0f;
 			case "stemmer": return 46.0f;
-//Rodinia~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~			
+//Rodinia~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~			
 			case "backprop": return 15.0f;
 			case "bfs": return 60.0f;
 			case "cfd": return 30.0f;
@@ -1520,7 +1536,7 @@ public class MPSSim {
 			case "leukocyte": return 20;
 			case "lud": return 20;
 			case "mummergpu": return 20;
-			case "myocyte": return 20;
+			case "myocyte": return 100;
 			case "nn": return 20;
 			case "nw": return 20;
 			case "particlefilter": return 20;

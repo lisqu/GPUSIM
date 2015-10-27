@@ -1059,8 +1059,7 @@ public class MPSSim {
 		String line;
 		try {
 
-			fileReader = new BufferedReader(new FileReader(MPSSim.PROFILE_PATH
-					+ filename));
+			fileReader = new BufferedReader(new FileReader(MPSSim.PROFILE_PATH + filename));
 			// skip the column name of the first line
 			line = fileReader.readLine();
 			int i = 0;
@@ -1116,13 +1115,12 @@ public class MPSSim {
 		read_load(args[0], args[1]);
 		
 		Random random = new Random();
-//		Random random2 = new Random();
 		int start_time=0;
-//		float flag=0.0f;
 		
 		int t_variation=getStartVariation(args[0]);
 		start_time = random.nextInt(t_variation);
-		target_start_point = 10000.0f + getInitTime(args[0]) + getWarmupTime(args[0], n_bg) + start_time;		
+//		target_start_point = 10000.0f + getInitTime(args[0]) + getWarmupTime(args[0], n_bg) + start_time;		
+		target_start_point = 20000.0f + getInitTime(args[0]) + getWarmupTime(args[0], n_bg) + start_time;		
 		System.out.println("TARGET: start time is "+target_start_point);
 		
 //		flag = random2.nextFloat();
@@ -1153,7 +1151,8 @@ public class MPSSim {
 		List target_load_obj=null;
 		List bg_load_obj=null;
 		String TARGET_LOAD=LOAD_PATH+tg+"_target_load.csv";
-		String BG_LOAD=LOAD_PATH+bg+"_bg_load.csv";
+//		String BG_LOAD=LOAD_PATH+bg+"_bg_load.csv";
+		String BG_LOAD=LOAD_PATH+bg+"_load.csv";
 		
 		try {
 			CSVReader reader = new CSVReader(new FileReader(TARGET_LOAD), ',');
@@ -1336,61 +1335,79 @@ public class MPSSim {
 
 	private static float getSlack(String query_name) {
 		if(Detail)	System.out.println(query_name);
-/*		
-		if(query_name.equals("dig")) {
-			return 1.0f;
-		} else if(query_name.equals("imc")) {
-			return 0.56f;
-		} else if(query_name.equals("face")) {
-			return 0.32f;
-		} else if(query_name.equals("pos")) {
-			return 0.0f;
-		} else if(query_name.equals("ner")) {
-			return 0.0f;
-		}		
-*/
-///*		
-		if(query_name.equals("dig")) {
-			return 0.3f;
-		} else if(query_name.equals("imc")) {
-			return 0.15f+randQuery.nextInt(2);
-		} else if(query_name.equals("face")) {
-			return 0.15f;
-		} else if(query_name.equals("pos")) {
-			return 0.15f;
-		} else if(query_name.equals("ner")) {
-			return randQuery.nextFloat()*2;
-		} else if(query_name.equals("stemmer")) {
-			return 0.15f;
-		} else if(query_name.equals("asr")) {
-			return 0.05f;
-		} else if(query_name.equals("gmm")) {
-			return 0.05f;
+		switch (query_name) {
+//DjiNN and Tonic~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+			case "dig": return 0.3f;
+			case "imc": return 0.15f+randQuery.nextInt(2);
+			case "face": return 0.15f;
+			case "pos": return 0.15f;
+			case "ner": return randQuery.nextFloat()*2;
+//Sirius Suite~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~			
+			case "asr": return 0.05f;
+			case "gmm": return 0.05f;
+			case "stemmer": return 0.15f;
+//Rodinia~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~			
+			case "backprop": return randQuery.nextFloat();
+			case "bfs": return randQuery.nextFloat();
+			case "cfd": return randQuery.nextFloat();
+			case "dwt2d": return randQuery.nextFloat();
+			case "gaussian": return randQuery.nextFloat();
+			case "heartwall": return randQuery.nextFloat();
+			case "hotspot": return randQuery.nextFloat();
+			case "hybridsort": return randQuery.nextFloat();
+			case "kmeans": return randQuery.nextFloat();
+			case "lavaMD": return randQuery.nextFloat();
+			case "leukocyte": return randQuery.nextFloat();
+			case "lud": return randQuery.nextFloat();
+			case "mummergpu": return randQuery.nextFloat();
+			case "myocyte": return randQuery.nextFloat();
+			case "nn": return randQuery.nextFloat();
+			case "nw": return randQuery.nextFloat();
+			case "particlefilter": return randQuery.nextFloat();
+			case "pathfinder": return randQuery.nextFloat();
+			case "srad": return randQuery.nextFloat();
+			case "streamcluster": return randQuery.nextFloat();
+			default: System.out.println("Init Time: not recorded------------------------");
 		}
-//*/		
+		
 		return 0;
 	}
 	
 	private static float getInitTime(String query_name) {
-		if(Detail)	System.out.println(query_name);
-		
-		if(query_name.equals("dig")) {
-			return 800.0f;
-		} else if(query_name.equals("imc")) {
-			return 1700.0f;
-		} else if(query_name.equals("face")) {
-			return 60.0f+randQuery.nextInt(1);
-		} else if(query_name.equals("pos")) {
-			return 20.0f+randQuery.nextInt(1);
-		} else if(query_name.equals("ner")) {
-			return 8.0f+randQuery.nextFloat()*2;
-		} else if(query_name.equals("stemmer")) {
-//			return 500.0f+randQuery.nextInt(50);
-			return 50.0f+randQuery.nextInt(30);
-		} else if(query_name.equals("asr")) {
-			return 1420.0f;
-		} else if(query_name.equals("gmm")) {
-			return 475.0f;
+		if(Detail)	System.out.println(query_name);		
+		switch (query_name) {
+//DjiNN and Tonic~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+			case "dig": return 800.0f;
+			case "imc": return 1700.0f;
+			case "face": return 60.0f+randQuery.nextInt(1);
+			case "pos": return 20.0f+randQuery.nextInt(1);
+			case "ner": return 8.0f+randQuery.nextFloat()*2;
+//Sirius Suite~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~			
+			case "asr": return 1420.0f;
+			case "gmm": return 475.0f;
+			case "stemmer": return 500.0f+randQuery.nextInt(50);
+//Rodinia~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~			
+			case "backprop": return 256.0f;
+			case "bfs": return 238.0f;
+			case "cfd": return 1850.0f;
+			case "dwt2d": return 256.0f;
+			case "gaussian": return 230.0f;
+			case "heartwall": return 410.0f;
+			case "hotspot": return 240.0f;
+			case "hybridsort": return 270.0f;
+			case "kmeans": return 1650.0f;
+			case "lavaMD": return 240.0f;
+			case "leukocyte": return 240.0f;
+			case "lud": return 240.0f;
+			case "mummergpu": return 2650.0f;
+			case "myocyte": return 245.0f;
+			case "nn": return 235.0f;
+			case "nw": return 1150.0f;
+			case "particlefilter": return 245.0f;
+			case "pathfinder": return 2900.0f;
+			case "srad": return 290.0f;
+			case "streamcluster": return 240.0f;
+			default: System.out.println("Init Time: not recorded------------------------");
 		}
 		
 		return 1.0f;
@@ -1398,23 +1415,39 @@ public class MPSSim {
 	
 	private static float getWarmupTime(String query_name, int location) {
 		if(Detail)	System.out.println(query_name);
-		
-		if(query_name.equals("dig")) {
-			return 45.0f;
-		} else if(query_name.equals("imc")) {
-			return 180.0f;
-		} else if(query_name.equals("face")) {
-			return 340.0f;
-		} else if(query_name.equals("pos")) {
-			return 7.5f;
-		} else if(query_name.equals("ner")) {
-			return 5.0f;
-		} else if(query_name.equals("stemmer")) {
-			return 46.0f;
-		} else if(query_name.equals("asr")) {
-			return 90.0f;
-		} else if(query_name.equals("gmm")) {
-			return 230.0f;
+		switch (query_name) {
+//DjiNN and Tonic~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+			case "dig": return 45.0f;
+			case "imc": return 180.0f;
+			case "face": return 340.0f;
+			case "pos": return 7.5f;
+			case "ner": return 5.0f;
+//Sirius Suite~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~			
+			case "asr": return 90.0f;
+			case "gmm": return 230.0f;
+			case "stemmer": return 46.0f;
+//Rodinia~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~			
+			case "backprop": return 15.0f;
+			case "bfs": return 60.0f;
+			case "cfd": return 30.0f;
+			case "dwt2d": return 100.0f;
+			case "gaussian": return 56.0f;
+			case "heartwall": return 30.0f;
+			case "hotspot": return 5.0f;
+			case "hybridsort": return 90.0f;
+			case "kmeans": return 160.0f;
+			case "lavaMD": return 2.0f;
+			case "leukocyte": return 32.0f;
+			case "lud": return 5.0f;
+			case "mummergpu": return 10.0f;
+			case "myocyte": return 20.0f;
+			case "nn": return 3.0f;
+			case "nw": return 10.0f;
+			case "particlefilter": return 2.0f;
+			case "pathfinder": return 5.0f;
+			case "srad": return 25.0f;
+			case "streamcluster": return 18.0f;
+			default: System.out.println("Warmup Time: not recorded--------------------");
 		}
 		
 		return 1.0f;
@@ -1422,51 +1455,81 @@ public class MPSSim {
 	
 	private static float getMicroDelay(String query_name) {
 		if(Detail)	System.out.println(query_name);
-		
-		if(query_name.equals("dig")) {
-			return 1.0f;
-		} else if(query_name.equals("imc")) {
-			return 1.0f;
-//			return 1.1f;
-		} else if(query_name.equals("face")) {
-			return 1.0f;
-//			return 1.46f;
-		} else if(query_name.equals("pos")) {
-			return 1.0f;
-		} else if(query_name.equals("ner")) {
-			return 1.0f;
-		} else if(query_name.equals("stemmer")) {
-			return 1.0f;
-		} else if(query_name.equals("asr")) {
-			return 1.0f;
-		} else if(query_name.equals("gmm")) {
-			return 1.0f;
+		switch (query_name) {
+//DjiNN and Tonic~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+			case "dig": return 1.0f;
+			case "imc": return 1.0f;
+			case "face": return 1.0f;
+			case "pos": return 1.0f;
+			case "ner": return 1.0f;
+//Sirius Suite~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~			
+			case "asr": return 1.0f;
+			case "gmm": return 1.0f;
+			case "stemmer": return 1.0f;
+//Rodinia~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~	
+			case "backprop": return 1.0f;
+			case "bfs": return 1.0f;
+			case "cfd": return 1.0f;
+			case "dwt2d": return 1.0f;
+			case "gaussian": return 1.0f;
+			case "heartwall": return 1.0f;
+			case "hotspot": return 1.0f;
+			case "hybridsort": return 1.0f;
+			case "kmeans": return 1.0f;
+			case "lavaMD": return 1.0f;
+			case "leukocyte": return 1.0f;
+			case "lud": return 1.0f;
+			case "mummergpu": return 1.0f;
+			case "myocyte": return 1.0f;
+			case "nn": return 1.0f;
+			case "nw": return 1.0f;
+			case "particlefilter": return 1.0f;
+			case "pathfinder": return 1.0f;
+			case "srad": return 1.0f;
+			case "streamcluster": return 1.0f;
+			default: System.out.println("Micro Delay: not recorded---------------------------");
 		}
-		
+
 		return 1.0f;
 	}
 	
 	private static int getStartVariation(String query_name) {
 		if(Detail)	System.out.println(query_name);
-		
-		if(query_name.equals("dig")) {
-			return 50;
-		} else if(query_name.equals("imc")) {
-			return 200;
-		} else if(query_name.equals("face")) {
-			return 30;
-		} else if(query_name.equals("pos")) {
-			return 20;
-		} else if(query_name.equals("ner")) {
-			return 20;
-		} else if(query_name.equals("stemmer")) {
-			return 20;
-		} else if(query_name.equals("asr")) {
-			return 20;
-		} else if(query_name.equals("gmm")) {
-			return 20;
+		switch (query_name) {
+//DjiNN and Tonic~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+			case "dig": return 50;
+			case "imc": return 200;
+			case "face": return 30;
+			case "pos": return 20;
+			case "ner": return 20;
+//Sirius Suite~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~			
+			case "asr": return 20;
+			case "gmm": return 20;
+			case "stemmer": return 20;
+//Rodinia~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~	
+			case "backprop": return 20;
+			case "bfs": return 20;
+			case "cfd": return 20;
+			case "dwt2d": return 20;
+			case "gaussian": return 20;
+			case "heartwall": return 20;
+			case "hotspot": return 20;
+			case "hybridsort": return 20;
+			case "kmeans": return 20;
+			case "lavaMD": return 20;
+			case "leukocyte": return 20;
+			case "lud": return 20;
+			case "mummergpu": return 20;
+			case "myocyte": return 20;
+			case "nn": return 20;
+			case "nw": return 20;
+			case "particlefilter": return 20;
+			case "pathfinder": return 20;
+			case "srad": return 20;
+			case "streamcluster": return 20;
+			default: System.out.println("Start Variation: not recorded-----------------");
 		}
-		
+
 		return 20;
 	}
 	

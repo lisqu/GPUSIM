@@ -3,7 +3,7 @@
 #cp bin/edu/umich/clarity/sim.jar ./
 
 #n_bg=(1 2 4 6 8)
-n_bg=(6)
+n_bg=(8)
 
 tg=$1
 bg=$2
@@ -13,10 +13,10 @@ bg_service1=(face dig imc)
 bg_service2=(pos ner)
 
 for b in ${n_bg[@]}; do
-    echo "end_to_end" > simulated/sim-${tg}-${n_bg}-${bg}.csv
-        for((i=0;i<50;i++))
+    echo "end_to_end" > simulated/${tg}-${n_bg}-${bg}-sim.csv
+        for((i=0;i<10;i++))
         do
-            java -jar sim.jar ${tg} ${bg} 1 ${b} 200 2000
+            java -jar sim.jar ${tg} ${bg} 1 ${b} 200 3000
         done
 done
 

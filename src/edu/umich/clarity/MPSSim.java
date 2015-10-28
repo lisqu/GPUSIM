@@ -507,6 +507,64 @@ public class MPSSim {
 	}
 
 	/**
+	 * How many SMs are not occupied by other programs
+	 * @param st
+	 * @return
+	 */
+	private int calLeftSM(float st) {
+		int avail = 15;
+		for(Kernel k: activeKernel) {
+			if(k.getNonfull_time() <= st && k.getEnd_time() >= st) {
+				avail -= k.getSms();
+			}
+		}
+		
+		for (int i=0;i<activeKernel.size();i++) {
+			if(activeKernel.get(i).getEnd_time() < st) {
+				activeKernel.remove(i);
+			}
+		}
+		
+		return avail;
+	}
+	
+	/**
+	 * update the start time of the current kernel
+	 * @param st
+	 * @return
+	 */
+	private float updateStartTime(float st) {
+		int avail = 15;
+		float ret = st;
+		for(Kernel k: activeKernel) {
+			if(k.getNonfull_time() <= st && k.getEnd_time() >= st) {
+				avail -= k.getSms();
+			}
+		}
+		
+		if (avail >= 1)	return st;
+		else {
+			ret=100000000.0f;
+			for(Kernel k: activeKernel) {
+				if(k.getNonfull_time() <= st && k.getEnd_time() >= st && k.getEnd_time() < ret) {
+					ret = k.getEnd_time();
+				}
+			}
+/*			do {
+				avail = 15;
+				ret +=1.0f;
+				for(Kernel k: activeKernel) {
+					if(k.getNonfull_time() <= ret && k.getEnd_time() >= ret) {
+						avail -= k.getSms();
+					}
+				}
+			} while (avail < 1);
+*/
+			return ret;
+		}
+	}
+	
+	/**
 	 * Select the right kernel to be issued to the kernel queue. A couple of
 	 * constraints need to be met in order to mimic the real experiment setup.
 	 * 1.kernel within the same type of query should be issued sequentially 2.
@@ -592,6 +650,10 @@ public class MPSSim {
 						 */
 						issuingQueries.get(chosen_query).setSeqconstraint(true);
 						float st = Math.max(elapse_time-overlapping_time, issuingQueries.get(kernel.getQuery_type()).getReady_time());
+							
+						if(overlapping_time > 0)	System.out.println("overlapping time is "+overlapping_time);
+						st = updateStartTime(st);
+						
 						kernel.setStart_time(st);					
 ///*
 						if(kernel.getOccupancy() == 0) {
@@ -630,19 +692,29 @@ public class MPSSim {
 							int org_batches=1;
 							
 							if(kernel.getOccupancy()!=0) {
-								overlapped = kernel.getWarps_per_batch()/15 * left_sm;
+								overlapped = kernel.getWarps_per_batch() / 15 * calLeftSM(st);
+//								overlapped = kernel.getWarps_per_batch()/15 * left_sm;
 								org_batches = (int) Math.ceil(kernel.getWarps()/(float)(kernel.getWarps_per_batch()));
 								kernel.setOverlapped_warps(overlapped);
+//								System.out.println("left_sm, cal left_sm: "+left_sm+" , "+calLeftSM(st));
 								
-//								batches = (int) Math.ceil( (kernel.getWarps()-overlapped)/(float)(kernel.getWarps_per_batch()));
-								batches = 1 + (int) Math.ceil( (kernel.getWarps()-overlapped)/(float)(kernel.getWarps_per_batch()));
-//								if(batches == 2)	batches = 1;
+//								batches = 1+(int) Math.ceil( (kernel.getWarps()-overlapped)/(float)(kernel.getWarps_per_batch()));
+								if(overlapped>0) batches = 1 + (int) Math.ceil( (kernel.getWarps()-overlapped)/(float)(kernel.getWarps_per_batch()));
+								else batches = (int) Math.ceil( kernel.getWarps()/(float)(kernel.getWarps_per_batch()));
+								
 //								batches = (int) Math.ceil(kernel.getWarps()/(float)(kernel.getWarps_per_batch()));
 								kernel.setReal_duration(kernel.getDuration()*batches/org_batches);
 								
 // Mark the time range where the current kernel does not occupy all the SMs, calculates the number of SMs used in that range								
 								kernel.setNonfull_time(kernel.getStart_time()+kernel.getDuration()*(batches-1)/batches);
-								kernel.setSms((int) Math.ceil( (kernel.getWarps() -(batches-1)*kernel.getWarps_per_batch())/(kernel.getWarps_per_batch()/15) ));
+								
+								int bat = (kernel.getWarps() - overlapped)/kernel.getWarps_per_batch();
+								int sms =(int) Math.ceil( (kernel.getWarps()-overlapped-bat*kernel.getWarps_per_batch())/(kernel.getWarps_per_batch()/15) );
+
+//								int sms = (int) Math.ceil( (kernel.getWarps()-(batches-1)*kernel.getWarps_per_batch())/(kernel.getWarps_per_batch()/15) );
+								if (sms< 0)	sms = 0;
+								kernel.setSms(sms);
+								
 								activeKernel.add(kernel);							
 							}
 							else kernel.setReal_duration(kernel.getDuration());							
@@ -653,9 +725,6 @@ public class MPSSim {
 						
 //						if(kernel.getQuery_type() == 0)
 //							System.out.println(kernel.getExecution_order()+" : "+kernel.getDuration()+"->"+kernel.getReal_duration());
-
-//						kernel.setStart_time(elapse_time-overlapping_time);
-//						System.out.println("ready: "+issuingQueries.get(kernel.getQuery_type()).getStart_time()+", start: "+ (elapse_time-overlapping_time) );
 
 						kernel.setEnd_time(kernel.getReal_duration() + st + MPSSim.KERNEL_SLACK);
 						
@@ -1038,8 +1107,9 @@ public class MPSSim {
 				start_time = kernel.getEnd_time();
 				int batches = (int) Math.ceil(kernel.getWarps()/(float)(kernel.getWarps_per_batch()));
 				if(batches !=0 ) overlapping_time = kernel.getDuration()/batches;
+				
 				left_sm = 15 - (int) Math.ceil( (kernel.getWarps() -(batches-1)*kernel.getWarps_per_batch())/(kernel.getWarps_per_batch()/15) );
-//				System.out.println("left over is: "+left_sm+", start time: "+start_time+", overlappting time is: "+overlapping_time);
+//				System.out.println("left over is: "+left_sm+", start time: "+start_time+", overlappting time is: "+overlapping_time+", warps: "+kernel.getWarps()+" , per batch: "+kernel.getWarps_per_batch()+" , batch: "+batches);
 //				if(kernel.getQuery_type()==0)
 //					System.out.println("kernel duration: "+kernel.getDuration()+", kernel batches: "+batches+", the expected overlapping time is: "+overlapping_time+", kernel is: "+kernel.getQuery_type()+", kernel id: "+kernel.getExecution_order());
 			}
@@ -1408,7 +1478,7 @@ public class MPSSim {
 			case "cfd": return 1850.0f;
 			case "dwt2d": return 256.0f;
 			case "gaussian": return 230.0f;
-			case "heartwall": return 410.0f;
+			case "heartwall": return 410.0f+randQuery.nextFloat()*2;
 			case "hotspot": return 240.0f;
 			case "hybridsort": return 270.0f;
 			case "kmeans": return 1650.0f;

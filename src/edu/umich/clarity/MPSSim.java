@@ -654,9 +654,7 @@ public class MPSSim {
 //						System.out.println("ready: "+issuingQueries.get(kernel.getQuery_type()).getReady_time()+"; elapse: "+elapse_time+", overlapping: "+overlapping_time);
 //						if(overlapping_time > 0)	System.out.println("overlapping time is "+overlapping_time);
 						float st = updateStartTime(org_st);
-						
-//						if(Float.compare(st, org_st) != 0) System.out.println("start time: "+issuingQueries.get(kernel.getQuery_type()).getReady_time()+"--->"+st);
-						
+												
 						kernel.setStart_time(st);					
 ///*
 						if(kernel.getOccupancy() == 0) {
@@ -1227,8 +1225,8 @@ public class MPSSim {
 		for(int i=0;i<n_bg;i++) {
 			start_time = random.nextInt(t_variation);
 //			flag = random2.nextFloat();
-			bg_start_points.add(i*1000.0f + getInitTime(args[1]) + getWarmupTime(args[1], i) + start_time);
-//			bg_start_points.add(getInitTime(args[1]) + getWarmupTime(args[1], i) + start_time);
+//			bg_start_points.add(i*1000.0f + getInitTime(args[1]) + getWarmupTime(args[1], i) + start_time);
+			bg_start_points.add(getInitTime(args[1]) + getWarmupTime(args[1], i) + start_time);
 
 			System.out.println("BG: start time is "+bg_start_points.get(i));
 		}
@@ -1438,7 +1436,7 @@ public class MPSSim {
 		switch (query_name) {
 //DjiNN and Tonic~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 			case "dig": return 0.3f;
-			case "imc": return 0.15f+randQuery.nextInt(2);
+			case "imc": return 0.15f+randQuery.nextInt(1);
 			case "face": return 0.15f;
 			case "pos": return 0.15f;
 			case "ner": return randQuery.nextFloat()*2;
@@ -1452,11 +1450,11 @@ public class MPSSim {
 			case "cfd": return 0;
 			case "dwt2d": return randQuery.nextFloat();
 			case "gaussian": return randQuery.nextFloat();
-			case "heartwall": return 0;
+			case "heartwall": return randQuery.nextFloat();
 			case "hotspot": return randQuery.nextFloat();
 			case "hybridsort": return 0;
 			case "kmeans": return randQuery.nextFloat();
-			case "lavaMD": return 0;
+			case "lavaMD": return randQuery.nextFloat();
 			case "leukocyte": return 0;
 			case "lud": return randQuery.nextFloat();
 			case "mummergpu": return randQuery.nextFloat();
@@ -1496,7 +1494,7 @@ public class MPSSim {
 			case "hotspot": return 240.0f;
 			case "hybridsort": return 270.0f;
 			case "kmeans": return 1650.0f;
-			case "lavaMD": return 240.0f;
+			case "lavaMD": return 245.0f;
 			case "leukocyte": return 240.0f;
 			case "lud": return 240.0f;
 			case "mummergpu": return 2650.0f;
@@ -1532,11 +1530,11 @@ public class MPSSim {
 			case "cfd": return 30.0f;
 			case "dwt2d": return 100.0f;
 			case "gaussian": return 56.0f;
-			case "heartwall": return 10.0f;
+			case "heartwall": return 7.0f;
 			case "hotspot": return 5.0f;
 			case "hybridsort": return 90.0f;
 			case "kmeans": return 160.0f;
-			case "lavaMD": return 2.0f;
+			case "lavaMD": return 0.0f;
 			case "leukocyte": return 32.0f;
 			case "lud": return 5.0f;
 			case "mummergpu": return 10.0f;
@@ -1598,7 +1596,7 @@ public class MPSSim {
 		switch (query_name) {
 //DjiNN and Tonic~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 			case "dig": return 50;
-			case "imc": return 200;
+			case "imc": return 50;
 			case "face": return 30;
 			case "pos": return 20;
 			case "ner": return 20;
@@ -1612,9 +1610,9 @@ public class MPSSim {
 			case "cfd": return 20;
 			case "dwt2d": return 20;
 			case "gaussian": return 20;
-			case "heartwall": return 100;
+			case "heartwall": return 20;
 			case "hotspot": return 20;
-			case "hybridsort": return 1;
+			case "hybridsort": return 10;
 			case "kmeans": return 20;
 			case "lavaMD": return 20;
 			case "leukocyte": return 20;

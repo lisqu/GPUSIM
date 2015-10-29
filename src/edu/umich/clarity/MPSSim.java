@@ -651,8 +651,11 @@ public class MPSSim {
 						 */
 						issuingQueries.get(chosen_query).setSeqconstraint(true);
 						float org_st = Math.max(elapse_time-overlapping_time, issuingQueries.get(kernel.getQuery_type()).getReady_time());
-//						System.out.println("ready: "+issuingQueries.get(kernel.getQuery_type()).getReady_time()+"; elapse: "+elapse_time+", overlapping: "+overlapping_time);
-//						if(overlapping_time > 0)	System.out.println("overlapping time is "+overlapping_time);
+
+//						if(Float.compare(kernel.getDuration(), 20) > 0 && Float.compare(elapse_time, 50000.0f) < 0 && Float.compare(elapse_time, 25000.0f) > 0)
+//							System.out.println("-----ready: "+issuingQueries.get(kernel.getQuery_type()).getReady_time()
+//									+"; elapse: "+elapse_time+", overlapping: "+overlapping_time+", st: "+org_st);
+
 						float st = updateStartTime(org_st);
 												
 						kernel.setStart_time(st);					
@@ -706,9 +709,15 @@ public class MPSSim {
 								else batches = (int) Math.ceil( kernel.getWarps()/(float)(kernel.getWarps_per_batch()));
 								
 //								batches = (int) Math.ceil(kernel.getWarps()/(float)(kernel.getWarps_per_batch()));
-								kernel.setReal_duration(kernel.getDuration()*batches/org_batches);
-//								System.out.println("type: "+kernel.getQuery_type()+", st: "+org_st+"----"+st+", duration and real duration are: "+kernel.getDuration()+"---"+kernel.getReal_duration()+"; org_batch, batch: "+org_batches+"-----"+batches+", left SM: "+left);
-
+								kernel.setReal_duration(kernel.getDuration()*batches/org_batches*microDelays.get(kernel.getQuery_type()));
+/*
+								if(kernel.getQuery_type() == 0 || (Float.compare(kernel.getDuration(), 0.5f) > 0 && 
+										Float.compare(elapse_time, 50000.0f) < 0 && Float.compare(elapse_time, 25000.0f) > 0))
+									System.out.println("type: "+kernel.getQuery_type()+", st: "+org_st+"----"+st
+											+", duration and real duration are: "+kernel.getDuration()
+											+"---"+kernel.getReal_duration()+"; org_batch, batch: "
+											+org_batches+"-----"+batches+", left SM: "+left);
+*/
 // Mark the time range where the current kernel does not occupy all the SMs, calculates the number of SMs used in that range
 								if(overlapped > kernel.getWarps())	kernel.setNonfull_time(kernel.getStart_time());
 								else kernel.setNonfull_time(kernel.getStart_time()+kernel.getDuration()*(batches-1)/batches);
@@ -816,8 +825,8 @@ public class MPSSim {
 		
 		ret = kernel.getDuration() * slow_down;	//calculate new duration
 
-//		if(kernel.getQuery_type() == 0)
-//			System.out.println("the memcpy is delayed******************"+active_memcpies.size()+", length: "+ret+", type: "+kernel.getDirection());
+		if(kernel.getQuery_type() == 0)
+			System.out.println("the memcpy is delayed******************"+active_memcpies.size()+", length: "+ret+", type: "+kernel.getDirection());
 
 		if(slow_down > 1.0f) {		
 			for(int i=0;i<active_memcpies.size();i++) {
@@ -951,12 +960,12 @@ public class MPSSim {
 			if (kernel.getOccupancy() == 0) {
 				pcie_transfer = false;
 			}
-/*			
+///*			
 			if(kernel.getQuery_type() == 0)
 				System.out.println(kernel.getExecution_order()+" : start: "+kernel.getStart_time()+", end: "+kernel.getEnd_time()+"~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~, duration: "+kernel.getReal_duration());
-			else 
-				System.out.println(kernel.getQuery_type()+"----"+kernel.getExecution_order()+" : start: "+kernel.getStart_time()+", duration:"+kernel.getReal_duration());
-*/
+//			else 
+//				System.out.println(kernel.getQuery_type()+"----"+kernel.getExecution_order()+" : start: "+kernel.getStart_time()+", duration:"+kernel.getReal_duration());
+//*/
 			
 //			System.out.println(kernel.getQuery_type()+" : "+kernel.getExecution_order());
 			/*
@@ -998,14 +1007,17 @@ public class MPSSim {
 					
 					k.setEnd_time(k.getStart_time()+k.getReal_duration());
 					
-					if(k.getDirection() == 2) {
+					if(k.getDirection() == 2 && issuingQueries.get(kernel.getQuery_type()).getKernelQueue().isEmpty() ) {
 						issuingQueries.get(k.getQuery_type()).setEnd_time(k.getEnd_time());
-/*						
+///*						
 						if(k.getQuery_type() == 0)
-							System.out.println(k.getExecution_order()+" : start: "+k.getStart_time()+", end: "+k.getEnd_time()+"~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~, duration: "+k.getReal_duration());
+							System.out.println(k.getExecution_order()+"------------: start: "+k.getStart_time()
+									+", end: "+k.getEnd_time()+"~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~, duration: "+k.getReal_duration()
+									+", Run: "+issuingQueries.get(k.getQuery_type()).getStart_time()+ "-->"
+									+issuingQueries.get(k.getQuery_type()).getEnd_time());
 //						else 
 //							System.out.println(k.getExecution_order()+" : start: "+k.getStart_time()+", duration:"+k.getReal_duration()+", client: "+k.getQuery_type());
-*/
+//*/
 					}
 			}
 
@@ -1015,8 +1027,9 @@ public class MPSSim {
 			if (issuingQueries.get(kernel.getQuery_type()).getKernelQueue().isEmpty()) {
 				
 				 // 7. set the finish time (global time) of the query
-				 
-				issuingQueries.get(kernel.getQuery_type()).setEnd_time(kernel.getEnd_time());
+				if(Float.compare(kernel.getEnd_time(), issuingQueries.get(kernel.getQuery_type()).getEnd_time()) > 0) { 
+					issuingQueries.get(kernel.getQuery_type()).setEnd_time(kernel.getEnd_time());
+				}
 //add the duration of the last memcpy from GPU to CPU				
 //				issuingQueries.get(kernel.getQuery_type()).setEnd_time(kernel.getEnd_time()+15.4f);
 
@@ -1127,8 +1140,11 @@ public class MPSSim {
 				overlapping_time = 0.0f;
 				left_sm = 0;
 			}
-
-//			System.out.println("start time, overlapping_time: "+start_time+"----"+overlapping_time+"completed is: "+kernel.getQuery_type());
+			
+//			if(Float.compare(start_time, 50000.0f) < 0 && Float.compare(start_time, 25000.0f) > 0)
+//				System.out.println("start time, duration, overlapping_time: "+start_time+"----"+kernel.getDuration()
+//						+"---"+overlapping_time+" !! completed is: "+kernel.getQuery_type());
+			
 			enqueueKernel_quan(start_time, overlapping_time, left_sm);			
 //			enqueueKernel_quan(kernel.getEnd_time(), overlapping_time);
 		}
@@ -1200,6 +1216,9 @@ public class MPSSim {
 		return kernelList;
 	}
 
+	static float tg_st=22386.0f;
+	static float bg_st[]={150.0f, 1143.0f, 2153.0f, 3155.0f, 4148.0f, 5154.0f, 6155.0f, 7154.0f};
+	
 	public static void main(String[] args) {
 		MPSSim mps_sim = new MPSSim();
 		/*
@@ -1216,7 +1235,8 @@ public class MPSSim {
 		start_time = random.nextInt(t_variation);
 //		target_start_point = 10000.0f + getInitTime(args[0]) + getWarmupTime(args[0], n_bg) + start_time;		
 		target_start_point = 20000.0f + getInitTime(args[0]) + getWarmupTime(args[0], n_bg) + start_time;		
-
+//		target_start_point = tg_st;	
+		
 		System.out.println("TARGET: start time is "+target_start_point);
 		
 //		flag = random2.nextFloat();
@@ -1225,8 +1245,9 @@ public class MPSSim {
 		for(int i=0;i<n_bg;i++) {
 			start_time = random.nextInt(t_variation);
 //			flag = random2.nextFloat();
-//			bg_start_points.add(i*1000.0f + getInitTime(args[1]) + getWarmupTime(args[1], i) + start_time);
-			bg_start_points.add(getInitTime(args[1]) + getWarmupTime(args[1], i) + start_time);
+			bg_start_points.add(i*1000.0f + getInitTime(args[1]) + getWarmupTime(args[1], i) + start_time);
+//			bg_start_points.add(getInitTime(args[1]) + getWarmupTime(args[1], i) + start_time);
+//			bg_start_points.add(bg_st[i]);
 
 			System.out.println("BG: start time is "+bg_start_points.get(i));
 		}
@@ -1447,7 +1468,7 @@ public class MPSSim {
 //Rodinia~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~			
 			case "backprop": return randQuery.nextFloat();
 			case "bfs": return randQuery.nextFloat();
-			case "cfd": return 0;
+			case "cfd": return 0.05f;
 			case "dwt2d": return randQuery.nextFloat();
 			case "gaussian": return randQuery.nextFloat();
 			case "heartwall": return randQuery.nextFloat();
@@ -1462,7 +1483,7 @@ public class MPSSim {
 			case "nn": return randQuery.nextFloat();
 			case "nw": return randQuery.nextFloat();
 			case "particlefilter": return randQuery.nextFloat();
-			case "pathfinder": return 0;
+			case "pathfinder": return randQuery.nextFloat();
 			case "srad": return 0;
 			case "streamcluster": return randQuery.nextFloat();
 			default: System.out.println("Init Time: not recorded------------------------");
@@ -1483,15 +1504,15 @@ public class MPSSim {
 //Sirius Suite~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~			
 			case "asr": return 1420.0f;
 			case "gmm": return 475.0f;
-			case "stemmer": return 500.0f+randQuery.nextInt(50);
+			case "stemmer": return 500.0f+randQuery.nextInt(20);
 //Rodinia~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~			
 			case "backprop": return 256.0f;
 			case "bfs": return 238.0f;
-			case "cfd": return 1850.0f;
+			case "cfd": return 1740.0f;
 			case "dwt2d": return 256.0f;
 			case "gaussian": return 230.0f;
 			case "heartwall": return 30.0f;
-			case "hotspot": return 240.0f;
+			case "hotspot": return 60.0f;
 			case "hybridsort": return 270.0f;
 			case "kmeans": return 1650.0f;
 			case "lavaMD": return 245.0f;
@@ -1527,10 +1548,10 @@ public class MPSSim {
 //Rodinia~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~			
 			case "backprop": return 15.0f;
 			case "bfs": return 60.0f;
-			case "cfd": return 30.0f;
+			case "cfd": return 20.0f;
 			case "dwt2d": return 100.0f;
 			case "gaussian": return 56.0f;
-			case "heartwall": return 7.0f;
+			case "heartwall": return 10.0f;
 			case "hotspot": return 5.0f;
 			case "hybridsort": return 90.0f;
 			case "kmeans": return 160.0f;
@@ -1556,7 +1577,7 @@ public class MPSSim {
 		switch (query_name) {
 //DjiNN and Tonic~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 			case "dig": return 1.0f;
-			case "imc": return 1.0f;
+			case "imc": return 1.1f+randQuery.nextFloat()*0.1f;
 			case "face": return 1.0f;
 			case "pos": return 1.0f;
 			case "ner": return 1.0f;
@@ -1607,7 +1628,7 @@ public class MPSSim {
 //Rodinia~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~	
 			case "backprop": return 20;
 			case "bfs": return 20;
-			case "cfd": return 20;
+			case "cfd": return 1;
 			case "dwt2d": return 20;
 			case "gaussian": return 20;
 			case "heartwall": return 20;
@@ -1618,11 +1639,11 @@ public class MPSSim {
 			case "leukocyte": return 20;
 			case "lud": return 20;
 			case "mummergpu": return 20;
-			case "myocyte": return 100;
+			case "myocyte": return 20;
 			case "nn": return 20;
 			case "nw": return 20;
 			case "particlefilter": return 20;
-			case "pathfinder": return 1;
+			case "pathfinder": return 20;
 			case "srad": return 1;
 			case "streamcluster": return 20;
 			default: System.out.println("Start Variation: not recorded-----------------");

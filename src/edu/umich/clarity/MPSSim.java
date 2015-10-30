@@ -10,6 +10,7 @@ import java.util.AbstractMap.SimpleEntry;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -74,6 +75,8 @@ public class MPSSim {
 	private ArrayList<Kernel> memCpies_HTD = new ArrayList<Kernel>();
 	private ArrayList<Kernel> memCpies_DTH = new ArrayList<Kernel>();
 	
+	private ArrayList<MemCpy> active_memcpy_htd = new ArrayList<MemCpy>();
+	private ArrayList<MemCpy> active_memcpy_dth = new ArrayList<MemCpy>();
 	private ArrayList<MemCpy> active_memcpy = new ArrayList<MemCpy>();
 	
 	private ArrayList<Kernel> cudaMallocs = new ArrayList<Kernel>();
@@ -87,7 +90,8 @@ public class MPSSim {
 	public static String bg_name;
 	private final static boolean Detail = false;
 	private final static boolean MPS_enabled = true;
-	
+	private final static boolean CONSIDER_DIRECTION = true;
+
 	private boolean pcie_transfer = false;
 	/*
 	 * kernel scheduling policy
@@ -671,7 +675,7 @@ public class MPSSim {
 								memCpies_HTD.add(kernel);								//Add to the memcpy host to device queue
 							else if (kernel.getDirection() == 2)
 								memCpies_DTH.add(kernel);								//Add to the memcpy device to host queue
-							active_memcpy.add(new MemCpy(kernel));						//record the active_memcpy
+//							active_memcpy.add(new MemCpy(kernel));						//record the active_memcpy
 							
 							kernel.setReal_duration(calMemcpyDuration(kernel, st, kernel.getDirection()));		//Update the duration of the kernel
 //							System.out.println(kernel.getExecution_order()+" : "+kernel.getStart_time()+", duration:"+kernel.getDuration()+", client: "+kernel.getQuery_type());
@@ -892,151 +896,214 @@ public class MPSSim {
 	
 	public float calMemcpyDuration(Kernel kernel, float current_time, int direction) {
 		float ret = 0.0f;
+		float slow = 0.0f;
+		float raw_slow = 0.0f;
+		float raw_time = 0.0f;
+		active_memcpy.add(new MemCpy(kernel));
 		
-		LinkedList<Integer> active_memcpies = new LinkedList<Integer>();
+		if(CONSIDER_DIRECTION) {
 		if(direction == 1) {
-			for(Kernel k : memCpies_HTD) {
-				if(k.getStart_time()+k.getReal_duration() >= current_time) {
-					active_memcpies.add(new Integer(memCpies_HTD.indexOf(k)));			
-					ret += k.getDuration()-(current_time - k.getStart_time());
-				}
-			}
-		} else if(direction == 2) {
-			for(Kernel k : memCpies_DTH) {
-				if(k.getStart_time()+k.getReal_duration() >= current_time) {
-					active_memcpies.add(new Integer(memCpies_DTH.indexOf(k)));			
-					ret += k.getDuration()-(current_time - k.getStart_time());
-				}
-			}
-		}
-		
-		float start_t = kernel.getStart_time();
-		float end_t = kernel.getStart_time() + kernel.getDuration();
-		System.out.println("start: "+start_t+" , duration: "+kernel.getDuration()+" , end: "+end_t+"--------------"+active_memcpy);
-		
-		Collections.sort(active_memcpy);
-		
-		for(int i = 0; i< active_memcpy.size(); i++) {
-//			System.out.println("update time is: "+active_memcpy.get(i).getUpdate_time());
-			if(Float.compare(active_memcpy.get(i).getK().getEnd_time(), start_t) < 0) {
-//				System.out.println("start: "+start_t+", remove: "+ active_memcpy.get(i).getK().getEnd_time());
-				active_memcpy.remove(i);
-			}
-		}
+			active_memcpy_htd.add(new MemCpy(kernel));
+			float start_t = kernel.getStart_time();
+			float end_t = kernel.getStart_time() + kernel.getDuration(); 
+//			System.out.println("Add new kernel:~~~~~~~~~~~~~~~~~~~~ "+start_t+"-->"+end_t);
+//			System.out.println("Before==============================================================================="+start_t+"-->"+end_t+", "+active_memcpy_htd);
 
+			for (Iterator<MemCpy> iterator = active_memcpy_htd.iterator(); iterator.hasNext();) {
+				MemCpy mc = iterator.next();
+				if (Float.compare(mc.getK().getEnd_time(), start_t) <= 0) {
+					// Remove the current element from the iterator and the list.
+					iterator.remove();
+				}
+			}		
+//			System.out.println("After ==============================================================================="+active_memcpy_htd);
+		
+			Collections.sort(active_memcpy_htd);
+//			System.out.println("Active Memcpies ==============================================================================="+active_memcpy_htd);		
+		
 //Create time intervals that should be comsidered to update data transfer time, to be fixed
-		ArrayList<Float> interval = new ArrayList<Float>();
-		interval.add(start_t);
-		for(int i = 0; i< active_memcpy.size(); i++) {
-			interval.add(active_memcpy.get(i).getK().getEnd_time());
-			active_memcpy.get(i).setExpected_left_time(0.0f);
-		}
-		
-		for(int i = 1; i< interval.size(); i++) {
-			System.out.println("from "+interval.get(i-1)+" to "+ interval.get(i));
+			ArrayList<Float> interval = new ArrayList<Float>();
+			interval.add(start_t);
+			for(int i = 0; i< active_memcpy_htd.size(); i++) {
+				interval.add(active_memcpy_htd.get(i).getK().getEnd_time());
+				active_memcpy_htd.get(i).setExpected_left_time(0.0f);
+			}
+/*		
+			for(int i = 1; i< interval.size(); i++) {
+				System.out.println("~~~~~~~~~~~~~~~~update time from "+interval.get(i-1)+" to "+ interval.get(i));
 			
-			for(int j = 0; j< active_memcpy.size(); j++) {
-				active_memcpy.get(j).setExpected_left_time(active_memcpy.get(j).getExpected_left_time() + (interval.get(i)-interval.get(i-1)*(active_memcpy.size()-j)/3));
-			}
-		}
-		
-		for(int i = 0; i< active_memcpy.size(); i++) {
-			active_memcpy.get(i).getK().setEnd_time(start_t + active_memcpy.get(i).getExpected_left_time());
-		}
-		
-		for(int i = 0; i< active_memcpy.size(); i++) {
-			float newly_complete = (start_t - active_memcpy.get(i).getUpdate_time())*3/active_memcpy.get(i).getParallel();
-			System.out.println("newly complete is: "+newly_complete);
-			active_memcpy.get(i).setProgress(active_memcpy.get(i).getProgress() + newly_complete);
-		}
-		
-/// Calculate the slow down for all the active memcpies
-/*
-		float begin = start_t;
-		for(int i = 0; i < active_memcpy.size(); i++) {
-			float t = active_memcpy.get(i).getK().getEnd_time();
-					
-			for(int j = 0; j<active_memcpy.size();j++) {
-						
-			}
-		}
-*/
-		
-/// Setup the new update time
-		for(int i = 0; i< active_memcpy.size(); i++) {
-			active_memcpy.get(i).setUpdate_time(start_t);
-//			active_memcpy.get(i).setParallel(active_memcpy.get(i).getParallel() + 1);
-		}
-		
-		
-		float slow_down;
-		if(active_memcpies.size() == 1) {
-			ret = kernel.getDuration();
-			slow_down = 1.0f;
-		}
-		else if(active_memcpies.size() >= 2 && active_memcpies.size() < 4) {			
-//			ret =  kernel.getDuration() * (1.0f + 0.05f * active_memcpies.size());
-//			slow_down = 1.0f + 0.05f *active_memcpies.size();
-			ret =  kernel.getDuration() * (1.0f+0.03f*active_memcpies.size());
-			slow_down = 1.0f+0.03f*active_memcpies.size();			
-		} else {
-			slow_down = (active_memcpies.size())/3;
-//			slow_down = (float)(active_memcpies.size()) / 5.0f;
-//			System.out.println("the memcpy is delayed~~~~~~~~~~~~~~~~~~");
-		}
-//		slow_down = (float) (1.0f + Math.ceil(((active_memcpies.size()-1)/3))*0.4f);
-		
-		ret = kernel.getDuration() * slow_down;	//calculate new duration
-
-		if(kernel.getQuery_type() == 0)
-			System.out.println("the memcpy is delayed******************"+active_memcpies.size()+", length: "+ret+", type: "+kernel.getDirection());
-
-		if(slow_down > 1.0f) {		
-			for(int i=0;i<active_memcpies.size();i++) {
-				if(direction == 1) {
-//					ret = ret/3.0f + kernel.getDuration();
-					float new_time = memCpies_HTD.get(active_memcpies.get(i)).getDuration() * slow_down;	//calculate new duration
-					float delta_time = new_time - memCpies_HTD.get(active_memcpies.get(i)).getReal_duration();
-//					System.out.println("delta_time is: "+delta_time);
-					if(delta_time < 0)	delta_time = 0;
-
-					memCpies_HTD.get(active_memcpies.get(i)).setReal_duration(new_time);		//update new duration
-//					if(memCpies_HTD.get(active_memcpies.get(i)).getQuery_type() == 0)
-//					System.out.println("Duration is updated to--------------------------"+new_time+", "+memCpies_HTD.get(active_memcpies.get(i)).getQuery_type());
-					
-					issuingQueries.get(memCpies_HTD.get(active_memcpies.get(i)).getQuery_type()).setReady_time(
-							issuingQueries.get(memCpies_HTD.get(active_memcpies.get(i)).getQuery_type()).getReady_time() + delta_time);
-				} else if (direction == 2) {
-					float new_time = memCpies_DTH.get(active_memcpies.get(i)).getDuration() * slow_down;	//calculate new duration
-					float delta_time = new_time - memCpies_DTH.get(active_memcpies.get(i)).getReal_duration();
-					if(delta_time < 0)	delta_time = 0;
-
-					memCpies_DTH.get(active_memcpies.get(i)).setReal_duration(new_time);		//update new duration
-					
-//					if(memCpies_DTH.get(active_memcpies.get(i)).getQuery_type() == 0) 
-//						System.out.println("Duration is: "+ new_time);
-					issuingQueries.get(memCpies_DTH.get(active_memcpies.get(i)).getQuery_type()).setReady_time(
-							issuingQueries.get(memCpies_DTH.get(active_memcpies.get(i)).getQuery_type()).getReady_time() + delta_time);
+				for(int j = i-1; j< active_memcpy.size(); j++) {
+					float slow = Math.max((active_memcpy.size()-j)/3.0f, 1.0f);
+					System.out.println(j+"append addition: "+(interval.get(i)-interval.get(i-1))*slow);
+					active_memcpy.get(j).setExpected_left_time(active_memcpy.get(j).getExpected_left_time() + (interval.get(i)-interval.get(i-1))*slow);
 				}
 			}
-//			System.out.println(ret/3 + kernel.getDuration());
-//			ret = ret/3.0f + kernel.getDuration();
-//			ret = kernel.getDuration()* (n_tg + n_bg)/3.86f;
-		}
+*/		
+			for(int i = 1; i< interval.size(); i++) {
+//				System.out.println("~~~~~~~~~~~~~~~~update time from "+interval.get(i-1)+" to "+ interval.get(i));
+				int pre_parallel, parallel;
+				if(interval.get(i) <= end_t) pre_parallel = active_memcpy_htd.size()-i;
+				else pre_parallel = active_memcpy_htd.size()-i+1;
+				
+				parallel = active_memcpy_htd.size()-i+1;
+			
+				for(int j = i-1; j< active_memcpy_htd.size(); j++) {
+					float ll = 2.5f + randQuery.nextFloat()*0.2f;
+//					float ll = 2.0f;
+					slow = Math.max(parallel/ll, 1.0f);
+					if(active_memcpy_htd.get(j).getNew_inst() == 1) raw_slow = 1.0f;
+					else raw_slow = Math.max(pre_parallel/ll, 1.0f);
+				
+					raw_time = (interval.get(i)-interval.get(i-1))/raw_slow;
+//					if(active_memcpy_htd.get(j).getK().getQuery_type() == 0)
+//						System.out.println("memcpy: "+j+" of "+active_memcpy_htd.size()+"--------append addition: "+raw_time*slow);
+					active_memcpy_htd.get(j).setExpected_left_time(active_memcpy_htd.get(j).getExpected_left_time() + raw_time*slow+0.02f);
+				}
+			}
 		
-		if(direction == 1) {
-			for (int i=0;i<memCpies_HTD.size();i++) {
-				if(memCpies_HTD.get(i).getStart_time() + memCpies_HTD.get(i).getReal_duration() + 100 < current_time) {
-					memCpies_HTD.remove(i);
+			for(int i = 0; i< active_memcpy_htd.size(); i++) {
+				active_memcpy_htd.get(i).getK().setEnd_time(start_t + active_memcpy_htd.get(i).getExpected_left_time());
+				if(active_memcpy_htd.get(i).getK().getQuery_type() == 0)
+					System.out.println("duration updated to: "+ 
+								(active_memcpy_htd.get(i).getK().getEnd_time()-active_memcpy_htd.get(i).getK().getStart_time()));
+				
+				if(active_memcpy_htd.get(i).getK().getEnd_time() > issuingQueries.get(active_memcpy_htd.get(i).getK().getQuery_type()).getReady_time())
+					issuingQueries.get(active_memcpy_htd.get(i).getK().getQuery_type()).setReady_time(
+							active_memcpy_htd.get(i).getK().getEnd_time());
+			}
+		
+			for(int i = 0; i< active_memcpy_htd.size(); i++) {
+				if(active_memcpy_htd.get(i).getNew_inst() == 1) {
+					ret = active_memcpy_htd.get(i).getK().getEnd_time() - start_t;
+					active_memcpy_htd.get(i).setNew_inst(0);
+					break;
 				}
 			}
 		} else if (direction == 2) {
-			for (int i=0;i<memCpies_DTH.size();i++) {
-				if(memCpies_DTH.get(i).getStart_time() + memCpies_DTH.get(i).getReal_duration() < current_time) {
-					memCpies_DTH.remove(i);
+			active_memcpy_dth.add(new MemCpy(kernel));
+			float start_t = kernel.getStart_time();
+			float end_t = kernel.getStart_time() + kernel.getDuration(); 
+//			System.out.println("Add new kernel:~~~~~~~~~~~~~~~~~~~~ "+start_t+"-->"+end_t);
+//			System.out.println("Before==============================================================================="+start_t+", "+active_memcpy);
+
+			for (Iterator<MemCpy> iterator = active_memcpy_dth.iterator(); iterator.hasNext();) {
+				MemCpy mc = iterator.next();
+				if (Float.compare(mc.getK().getEnd_time(), start_t) <= 0) {
+					// Remove the current element from the iterator and the list.
+					iterator.remove();
 				}
-			}			
+			}		
+//			System.out.println("After ==============================================================================="+active_memcpy);
+		
+			Collections.sort(active_memcpy_dth);
+//			System.out.println("Active Memcpies ==============================================================================="+active_memcpy);		
+		
+			ArrayList<Float> interval = new ArrayList<Float>();
+			interval.add(start_t);
+			for(int i = 0; i< active_memcpy_dth.size(); i++) {
+				interval.add(active_memcpy_dth.get(i).getK().getEnd_time());
+				active_memcpy_dth.get(i).setExpected_left_time(0.0f);
+			}
+
+			for(int i = 1; i< interval.size(); i++) {
+//				System.out.println("~~~~~~~~~~~~~~~~update time from "+interval.get(i-1)+" to "+ interval.get(i));
+				int pre_parallel, parallel;
+				if(interval.get(i) <= end_t) pre_parallel = active_memcpy_dth.size()-i;
+				else pre_parallel = active_memcpy_dth.size()-i+1;
+				
+				parallel = active_memcpy_dth.size()-i+1;
+			
+				for(int j = i-1; j< active_memcpy_dth.size(); j++) {
+					float ll = 2.5f + randQuery.nextFloat()*0.2f;
+//					float ll = 2.0f;
+					slow = Math.max(parallel/ll, 1.0f);
+					if(active_memcpy_dth.get(j).getNew_inst() == 1) raw_slow = 1.0f;
+					else raw_slow = Math.max(pre_parallel/ll, 1.0f);
+				
+					raw_time = (interval.get(i)-interval.get(i-1))/raw_slow;
+					active_memcpy_dth.get(j).setExpected_left_time(active_memcpy_dth.get(j).getExpected_left_time() + raw_time*slow+0.02f);
+				}
+			}
+		
+			for(int i = 0; i< active_memcpy_dth.size(); i++) {
+				active_memcpy_dth.get(i).getK().setEnd_time(start_t + active_memcpy_dth.get(i).getExpected_left_time());
+				if(active_memcpy_dth.get(i).getK().getEnd_time() > issuingQueries.get(active_memcpy_dth.get(i).getK().getQuery_type()).getReady_time())
+					issuingQueries.get(active_memcpy_dth.get(i).getK().getQuery_type()).setReady_time(
+							active_memcpy_dth.get(i).getK().getEnd_time());
+			}
+		
+			for(int i = 0; i< active_memcpy_dth.size(); i++) {
+				if(active_memcpy_dth.get(i).getNew_inst() == 1) {
+					ret = active_memcpy_dth.get(i).getK().getEnd_time() - start_t;
+					active_memcpy_dth.get(i).setNew_inst(0);
+					break;
+				}
+			}
+		} else {
+			ret = kernel.getDuration();
 		}
+		} else {
+			float start_t = kernel.getStart_time();
+			float end_t = kernel.getStart_time() + kernel.getDuration(); 
+//			System.out.println("Add new kernel:~~~~~~~~~~~~~~~~~~~~ "+start_t+"-->"+end_t);
+//			System.out.println("Before==============================================================================="+start_t+", "+active_memcpy);
+
+			for (Iterator<MemCpy> iterator = active_memcpy.iterator(); iterator.hasNext();) {
+				MemCpy mc = iterator.next();
+				if (Float.compare(mc.getK().getEnd_time(), start_t) <= 0) {
+					// Remove the current element from the iterator and the list.
+					iterator.remove();
+				}
+			}		
+//			System.out.println("After ==============================================================================="+active_memcpy);
+		
+			Collections.sort(active_memcpy);
+//			System.out.println("Active Memcpies ==============================================================================="+active_memcpy);		
+		
+			ArrayList<Float> interval = new ArrayList<Float>();
+			interval.add(start_t);
+			for(int i = 0; i< active_memcpy.size(); i++) {
+				interval.add(active_memcpy.get(i).getK().getEnd_time());
+				active_memcpy.get(i).setExpected_left_time(0.0f);
+			}
+
+			for(int i = 1; i< interval.size(); i++) {
+//				System.out.println("~~~~~~~~~~~~~~~~update time from "+interval.get(i-1)+" to "+ interval.get(i));
+				int pre_parallel, parallel;
+				if(interval.get(i) <= end_t) pre_parallel = active_memcpy.size()-i;
+				else pre_parallel = active_memcpy.size()-i+1;
+				
+				parallel = active_memcpy.size()-i+1;
+			
+				for(int j = i-1; j< active_memcpy.size(); j++) {
+					float ll = 2.5f + randQuery.nextFloat()*0.2f;
+//					float ll = 2.0f;
+					slow = Math.max(parallel/ll, 1.0f);
+					if(active_memcpy.get(j).getNew_inst() == 1) raw_slow = 1.0f;
+					else raw_slow = Math.max(pre_parallel/ll, 1.0f);
+				
+					raw_time = (interval.get(i)-interval.get(i-1))/raw_slow;
+					active_memcpy.get(j).setExpected_left_time(active_memcpy.get(j).getExpected_left_time() + raw_time*slow+0.02f);
+				}
+			}
+		
+			for(int i = 0; i< active_memcpy.size(); i++) {
+				active_memcpy.get(i).getK().setEnd_time(start_t + active_memcpy.get(i).getExpected_left_time());
+				if(active_memcpy.get(i).getK().getEnd_time() > issuingQueries.get(active_memcpy.get(i).getK().getQuery_type()).getReady_time())
+					issuingQueries.get(active_memcpy.get(i).getK().getQuery_type()).setReady_time(
+							active_memcpy.get(i).getK().getEnd_time());
+			}
+		
+			for(int i = 0; i< active_memcpy.size(); i++) {
+				if(active_memcpy.get(i).getNew_inst() == 1) {
+					ret = active_memcpy.get(i).getK().getEnd_time() - start_t;
+					active_memcpy.get(i).setNew_inst(0);
+					break;
+				}
+			}
+		}
+		
+//		System.out.println("After*************************************************************************"+active_memcpy);
 		
 		return ret;
 	}
@@ -1117,12 +1184,12 @@ public class MPSSim {
 			if (kernel.getOccupancy() == 0) {
 				pcie_transfer = false;
 			}
-///*			
+/*			
 			if(kernel.getQuery_type() == 0)
 				System.out.println(kernel.getExecution_order()+" : start: "+kernel.getStart_time()+", end: "+kernel.getEnd_time()+"~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~, duration: "+kernel.getReal_duration());
 //			else 
 //				System.out.println(kernel.getQuery_type()+"----"+kernel.getExecution_order()+" : start: "+kernel.getStart_time()+", duration:"+kernel.getReal_duration());
-//*/
+*/
 			
 //			System.out.println(kernel.getQuery_type()+" : "+kernel.getExecution_order());
 			/*
@@ -1158,24 +1225,26 @@ public class MPSSim {
 						memCpies_HTD.add(k);								//Add to the memcpy host to device queue
 					else if (k.getDirection() == 2)
 						memCpies_DTH.add(k);								//Add to the memcpy device to host queue
-					active_memcpy.add(new MemCpy(kernel));						//record the active_memcpy
+//					active_memcpy.add(new MemCpy(kernel));						//record the active_memcpy
 					
 					k.setStart_time(issuingQueries.get(kernel.getQuery_type()).getReady_time());
+					k.setEnd_time(k.getStart_time() + k.getDuration());
 					k.setReal_duration(calMemcpyDuration(k, issuingQueries.get(kernel.getQuery_type()).getReady_time(), k.getDirection()));		//Update the duration of the kernel
 					
 					k.setEnd_time(k.getStart_time()+k.getReal_duration());
 					
 					if(k.getDirection() == 2 && issuingQueries.get(kernel.getQuery_type()).getKernelQueue().isEmpty() ) {
 						issuingQueries.get(k.getQuery_type()).setEnd_time(k.getEnd_time());
-///*						
+/*						
 						if(k.getQuery_type() == 0)
 							System.out.println(k.getExecution_order()+"------------: start: "+k.getStart_time()
 									+", end: "+k.getEnd_time()+"~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~, duration: "+k.getReal_duration()
 									+", Run: "+issuingQueries.get(k.getQuery_type()).getStart_time()+ "-->"
-									+issuingQueries.get(k.getQuery_type()).getEnd_time());
+									+issuingQueries.get(k.getQuery_type()).getEnd_time()
+									+", duration is: "+(issuingQueries.get(k.getQuery_type()).getEnd_time()-issuingQueries.get(k.getQuery_type()).getStart_time()));
 //						else 
 //							System.out.println(k.getExecution_order()+" : start: "+k.getStart_time()+", duration:"+k.getReal_duration()+", client: "+k.getQuery_type());
-//*/
+*/
 					}
 			}
 
@@ -1622,7 +1691,7 @@ public class MPSSim {
 //Sirius Suite~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~			
 			case "asr": return 0.05f;
 			case "gmm": return 0.05f;
-			case "stemmer": return 0.15f;
+			case "stemmer": return 0.15f+randQuery.nextInt(1);
 //Rodinia~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~			
 			case "backprop": return randQuery.nextFloat();
 			case "bfs": return randQuery.nextFloat();

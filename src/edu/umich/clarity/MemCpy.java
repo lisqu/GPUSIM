@@ -9,6 +9,7 @@ public class MemCpy implements Comparable<MemCpy> {
 	private float update_time;
 	private float used_time;
 	private float expected_left_time;	//the left transfer time if no more memcpies are added
+	private int new_inst;
 	
 	public MemCpy(Kernel ker) {
 		this.k = ker;
@@ -16,6 +17,7 @@ public class MemCpy implements Comparable<MemCpy> {
 		this.progress = 0.0f;
 		this.setParallel(1);
 		this.used_time = 0.0f;
+		this.setNew_inst(1);
 	}
 	
 	@Override
@@ -74,5 +76,13 @@ public class MemCpy implements Comparable<MemCpy> {
 
 	public void setExpected_left_time(float expected_left_time) {
 		this.expected_left_time = expected_left_time;
+	}
+
+	public int getNew_inst() {
+		return new_inst;
+	}
+
+	public void setNew_inst(int new_inst) {
+		this.new_inst = new_inst;
 	}
 }

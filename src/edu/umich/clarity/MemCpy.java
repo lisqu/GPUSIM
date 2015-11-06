@@ -10,6 +10,7 @@ public class MemCpy implements Comparable<MemCpy> {
 	private float used_time;
 	private float expected_left_time;	//the left transfer time if no more memcpies are added
 	private int new_inst;
+	private int pinned;
 	
 	public MemCpy(Kernel ker) {
 		this.k = ker;
@@ -18,6 +19,7 @@ public class MemCpy implements Comparable<MemCpy> {
 		this.setParallel(1);
 		this.used_time = 0.0f;
 		this.setNew_inst(1);
+		this.setPinned(ker.getPinned());
 	}
 	
 	@Override
@@ -84,5 +86,13 @@ public class MemCpy implements Comparable<MemCpy> {
 
 	public void setNew_inst(int new_inst) {
 		this.new_inst = new_inst;
+	}
+
+	public int getPinned() {
+		return pinned;
+	}
+
+	public void setPinned(int pinned) {
+		this.pinned = pinned;
 	}
 }

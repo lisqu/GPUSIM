@@ -900,6 +900,261 @@ public class MPSSim {
 		float raw_slow = 0.0f;
 		float raw_time = 0.0f;
 		active_memcpy.add(new MemCpy(kernel));
+		float start_t = kernel.getStart_time();
+		float end_t = kernel.getStart_time() + kernel.getDuration(); 
+		
+		if(CONSIDER_DIRECTION) {
+		if(direction == 1) {
+/**
+ * 1. Sort the active memory copies in the order of completion			
+ */
+			Collections.sort(active_memcpy_htd);					
+			
+/**
+* 2. Add the current memcpy into the queue			
+*/
+			MemCpy current = new MemCpy(kernel);			
+
+/**
+ * 3. Check whether there are any active pinned memory copies in the same direction.
+ * if there is any active pinned memory copies, the current memcpy cannot start before 
+ * the completion of the pinned memory copy.
+ */
+			for (Iterator<MemCpy> iterator = active_memcpy_htd.iterator(); iterator.hasNext();) {
+				MemCpy mc = iterator.next();
+				if (mc.getPinned() == 1) {
+					start_t = mc.getK().getEnd_time();
+					end_t = mc.getK().getEnd_time() + kernel.getDuration();
+					current.getK().setStart_time(start_t);
+					current.getK().setEnd_time(end_t);	//update the end_time first, for sorting in the next step
+					issuingQueries.get(current.getK().getQuery_type()).setReady_time(current.getK().getEnd_time());
+				}
+			}
+/**
+* 4. Remove the completed memory copies			
+*/
+			for (Iterator<MemCpy> iterator = active_memcpy_htd.iterator(); iterator.hasNext();) {
+				MemCpy mc = iterator.next();
+				if (Float.compare(mc.getK().getEnd_time(), start_t) <= 0) {
+					// Remove the current element from the iterator and the list.
+					iterator.remove();
+				}
+			}		
+			Collections.sort(active_memcpy_htd);
+//			System.out.println("Active Memcpies ==============================================================================="+active_memcpy_htd);		
+
+			if(current.getPinned() !=1) {
+				active_memcpy_htd.add(current);		//add the current memory copy into the queue
+				//Create time intervals that should be comsidered to update data transfer time, to be fixed
+				ArrayList<Float> interval = new ArrayList<Float>();
+				interval.add(start_t);
+				for(int i = 0; i< active_memcpy_htd.size(); i++) {
+					interval.add(active_memcpy_htd.get(i).getK().getEnd_time());
+					active_memcpy_htd.get(i).setExpected_left_time(0.0f);
+				}
+				
+				/**
+				 * the current added memcpy is a pageable memory copy
+				 */
+				for(int i = 1; i< interval.size(); i++) {
+//					System.out.println("~~~~~~~~~~~~~~~~update time from "+interval.get(i-1)+" to "+ interval.get(i));
+					int pre_parallel, parallel;
+					if(interval.get(i) <= end_t) pre_parallel = active_memcpy_htd.size()-i;
+					else pre_parallel = active_memcpy_htd.size()-i+1;
+				
+					parallel = active_memcpy_htd.size()-i+1;
+			
+					for(int j = i-1; j< active_memcpy_htd.size(); j++) {
+						float ll = 2.5f + randQuery.nextFloat()*0.2f;
+//						float ll = 2.0f;
+						slow = Math.max(parallel/ll, 1.0f);
+						if(active_memcpy_htd.get(j).getNew_inst() == 1) raw_slow = 1.0f;
+						else raw_slow = Math.max(pre_parallel/ll, 1.0f);
+				
+						raw_time = (interval.get(i)-interval.get(i-1))/raw_slow;
+						active_memcpy_htd.get(j).setExpected_left_time(active_memcpy_htd.get(j).getExpected_left_time() + raw_time*slow+0.02f);
+					}
+				}
+		
+				for(int i = 0; i< active_memcpy_htd.size(); i++) {
+					active_memcpy_htd.get(i).getK().setEnd_time(start_t + active_memcpy_htd.get(i).getExpected_left_time());
+					if(active_memcpy_htd.get(i).getK().getQuery_type() == 0)
+						System.out.println("duration updated to: "+ 
+								(active_memcpy_htd.get(i).getK().getEnd_time()-active_memcpy_htd.get(i).getK().getStart_time()));
+				
+					if(active_memcpy_htd.get(i).getK().getEnd_time() > issuingQueries.get(active_memcpy_htd.get(i).getK().getQuery_type()).getReady_time())
+						issuingQueries.get(active_memcpy_htd.get(i).getK().getQuery_type()).setReady_time(
+								active_memcpy_htd.get(i).getK().getEnd_time());
+				}
+		
+				for(int i = 0; i< active_memcpy_htd.size(); i++) {
+					if(active_memcpy_htd.get(i).getNew_inst() == 1) {
+						ret = active_memcpy_htd.get(i).getK().getEnd_time() - start_t;
+						active_memcpy_htd.get(i).setNew_inst(0);
+						break;
+					}
+				}
+			} else if (current.getPinned() == 1) {
+				/**
+				 * the current added memcpy is a pinned memory copy, only need to update the existing memcpies
+				 */
+				for(int i = 0; i< active_memcpy_htd.size(); i++) {
+					active_memcpy_htd.get(i).setExpected_left_time(active_memcpy_htd.get(i).getExpected_left_time()+kernel.getDuration());
+				}
+				
+				for(int i = 0; i< active_memcpy_htd.size(); i++) {
+					active_memcpy_htd.get(i).getK().setEnd_time(start_t + active_memcpy_htd.get(i).getExpected_left_time());
+					if(active_memcpy_htd.get(i).getK().getQuery_type() == 0)
+						System.out.println("duration updated to: "+ 
+								(active_memcpy_htd.get(i).getK().getEnd_time()-active_memcpy_htd.get(i).getK().getStart_time()));
+				
+					if(active_memcpy_htd.get(i).getK().getEnd_time() > issuingQueries.get(active_memcpy_htd.get(i).getK().getQuery_type()).getReady_time())
+						issuingQueries.get(active_memcpy_htd.get(i).getK().getQuery_type()).setReady_time(
+								active_memcpy_htd.get(i).getK().getEnd_time());
+				}
+		
+				for(int i = 0; i< active_memcpy_htd.size(); i++) {
+					if(active_memcpy_htd.get(i).getNew_inst() == 1) {
+						ret = active_memcpy_htd.get(i).getK().getEnd_time() - start_t;
+						active_memcpy_htd.get(i).setNew_inst(0);
+						break;
+					}
+				}
+				
+				active_memcpy_htd.add(current);		//add the current memory copy into the queue
+			}
+			
+		} else if (direction == 2) {
+			active_memcpy_dth.add(new MemCpy(kernel));
+//			System.out.println("Add new kernel:~~~~~~~~~~~~~~~~~~~~ "+start_t+"-->"+end_t);
+//			System.out.println("Before==============================================================================="+start_t+", "+active_memcpy);
+
+			for (Iterator<MemCpy> iterator = active_memcpy_dth.iterator(); iterator.hasNext();) {
+				MemCpy mc = iterator.next();
+				if (Float.compare(mc.getK().getEnd_time(), start_t) <= 0) {
+					// Remove the current element from the iterator and the list.
+					iterator.remove();
+				}
+			}		
+//			System.out.println("After ==============================================================================="+active_memcpy);
+		
+			Collections.sort(active_memcpy_dth);
+//			System.out.println("Active Memcpies ==============================================================================="+active_memcpy);		
+		
+			ArrayList<Float> interval = new ArrayList<Float>();
+			interval.add(start_t);
+			for(int i = 0; i< active_memcpy_dth.size(); i++) {
+				interval.add(active_memcpy_dth.get(i).getK().getEnd_time());
+				active_memcpy_dth.get(i).setExpected_left_time(0.0f);
+			}
+
+			for(int i = 1; i< interval.size(); i++) {
+//				System.out.println("~~~~~~~~~~~~~~~~update time from "+interval.get(i-1)+" to "+ interval.get(i));
+				int pre_parallel, parallel;
+				if(interval.get(i) <= end_t) pre_parallel = active_memcpy_dth.size()-i;
+				else pre_parallel = active_memcpy_dth.size()-i+1;
+				
+				parallel = active_memcpy_dth.size()-i+1;
+			
+				for(int j = i-1; j< active_memcpy_dth.size(); j++) {
+					float ll = 2.5f + randQuery.nextFloat()*0.2f;
+//					float ll = 2.0f;
+					slow = Math.max(parallel/ll, 1.0f);
+					if(active_memcpy_dth.get(j).getNew_inst() == 1) raw_slow = 1.0f;
+					else raw_slow = Math.max(pre_parallel/ll, 1.0f);
+				
+					raw_time = (interval.get(i)-interval.get(i-1))/raw_slow;
+					active_memcpy_dth.get(j).setExpected_left_time(active_memcpy_dth.get(j).getExpected_left_time() + raw_time*slow+0.02f);
+				}
+			}
+		
+			for(int i = 0; i< active_memcpy_dth.size(); i++) {
+				active_memcpy_dth.get(i).getK().setEnd_time(start_t + active_memcpy_dth.get(i).getExpected_left_time());
+				if(active_memcpy_dth.get(i).getK().getEnd_time() > issuingQueries.get(active_memcpy_dth.get(i).getK().getQuery_type()).getReady_time())
+					issuingQueries.get(active_memcpy_dth.get(i).getK().getQuery_type()).setReady_time(
+							active_memcpy_dth.get(i).getK().getEnd_time());
+			}
+		
+			for(int i = 0; i< active_memcpy_dth.size(); i++) {
+				if(active_memcpy_dth.get(i).getNew_inst() == 1) {
+					ret = active_memcpy_dth.get(i).getK().getEnd_time() - start_t;
+					active_memcpy_dth.get(i).setNew_inst(0);
+					break;
+				}
+			}
+		} else {
+			ret = kernel.getDuration();
+		}
+		} else {
+//			System.out.println("Add new kernel:~~~~~~~~~~~~~~~~~~~~ "+start_t+"-->"+end_t);
+//			System.out.println("Before==============================================================================="+start_t+", "+active_memcpy);
+
+			for (Iterator<MemCpy> iterator = active_memcpy.iterator(); iterator.hasNext();) {
+				MemCpy mc = iterator.next();
+				if (Float.compare(mc.getK().getEnd_time(), start_t) <= 0) {
+					// Remove the current element from the iterator and the list.
+					iterator.remove();
+				}
+			}		
+//			System.out.println("After ==============================================================================="+active_memcpy);
+		
+			Collections.sort(active_memcpy);
+//			System.out.println("Active Memcpies ==============================================================================="+active_memcpy);		
+		
+			ArrayList<Float> interval = new ArrayList<Float>();
+			interval.add(start_t);
+			for(int i = 0; i< active_memcpy.size(); i++) {
+				interval.add(active_memcpy.get(i).getK().getEnd_time());
+				active_memcpy.get(i).setExpected_left_time(0.0f);
+			}
+
+			for(int i = 1; i< interval.size(); i++) {
+//				System.out.println("~~~~~~~~~~~~~~~~update time from "+interval.get(i-1)+" to "+ interval.get(i));
+				int pre_parallel, parallel;
+				if(interval.get(i) <= end_t) pre_parallel = active_memcpy.size()-i;
+				else pre_parallel = active_memcpy.size()-i+1;
+				
+				parallel = active_memcpy.size()-i+1;
+			
+				for(int j = i-1; j< active_memcpy.size(); j++) {
+					float ll = 2.5f + randQuery.nextFloat()*0.2f;
+//					float ll = 2.0f;
+					slow = Math.max(parallel/ll, 1.0f);
+					if(active_memcpy.get(j).getNew_inst() == 1) raw_slow = 1.0f;
+					else raw_slow = Math.max(pre_parallel/ll, 1.0f);
+				
+					raw_time = (interval.get(i)-interval.get(i-1))/raw_slow;
+					active_memcpy.get(j).setExpected_left_time(active_memcpy.get(j).getExpected_left_time() + raw_time*slow+0.02f);
+				}
+			}
+		
+			for(int i = 0; i< active_memcpy.size(); i++) {
+				active_memcpy.get(i).getK().setEnd_time(start_t + active_memcpy.get(i).getExpected_left_time());
+				if(active_memcpy.get(i).getK().getEnd_time() > issuingQueries.get(active_memcpy.get(i).getK().getQuery_type()).getReady_time())
+					issuingQueries.get(active_memcpy.get(i).getK().getQuery_type()).setReady_time(
+							active_memcpy.get(i).getK().getEnd_time());
+			}
+		
+			for(int i = 0; i< active_memcpy.size(); i++) {
+				if(active_memcpy.get(i).getNew_inst() == 1) {
+					ret = active_memcpy.get(i).getK().getEnd_time() - start_t;
+					active_memcpy.get(i).setNew_inst(0);
+					break;
+				}
+			}
+		}
+		
+//		System.out.println("After*************************************************************************"+active_memcpy);
+		
+		return ret;
+	}
+
+	public float calMemcpyDuration_NoPin(Kernel kernel, float current_time, int direction) {
+		float ret = 0.0f;
+		float slow = 0.0f;
+		float raw_slow = 0.0f;
+		float raw_time = 0.0f;
+		active_memcpy.add(new MemCpy(kernel));
 		
 		if(CONSIDER_DIRECTION) {
 		if(direction == 1) {
@@ -1107,7 +1362,7 @@ public class MPSSim {
 		
 		return ret;
 	}
-
+	
 	//Todo: Calculate the impact of cudaMalloc on the latency, not a correct method	
 	public float calMallocDuration(Kernel kernel, float current_time) {
 		float ret = 0.0f;

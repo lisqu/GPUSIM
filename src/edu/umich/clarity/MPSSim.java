@@ -101,6 +101,7 @@ public class MPSSim {
 	public static int n_bg;
 	public static int n_tg;
 	public static String bg_name;
+	public static String tg_name;
 	private final static boolean Detail = false;
 	private final static boolean MPS_enabled = true;
 	private final static boolean CONSIDER_DIRECTION = true;
@@ -729,8 +730,7 @@ public class MPSSim {
 					// */
 
 					/***** Todo: manage cudaMalloc contention *******/
-					// if(kernel.getCuda_free() == 1 || kernel.getCuda_malloc()
-					// == 1) {
+/*					
 					if (kernel.getCuda_malloc() == 1) {
 						// kernel.setDuration(1.0f); //Initialize the duration
 						kernel.setReal_duration(1.0f); // Initialize the
@@ -743,8 +743,9 @@ public class MPSSim {
 																				// the
 																				// kernel
 					}
-
+*/
 					/***** Todo: manage cudaFree contention *******/
+/*
 					if (kernel.getCuda_free() == 1) {
 						kernel.setReal_duration(1.0f); // Initialize the
 														// duration
@@ -756,7 +757,7 @@ public class MPSSim {
 																				// the
 																				// kernel
 					}
-
+*/
 					// kernel.setDuration(kernel.getDuration()*microDelays.get(kernel.getQuery_type()));
 					// kernel.setReal_duration(kernel.getDuration()*microDelays.get(kernel.getQuery_type()));
 					if (MPS_enabled) {
@@ -794,20 +795,7 @@ public class MPSSim {
 							kernel.setReal_duration(kernel.getDuration()
 									* batches / org_batches
 									* microDelays.get(kernel.getQuery_type()));
-							/*
-							 * if(kernel.getQuery_type() == 0 ||
-							 * (Float.compare(kernel.getDuration(), 0.5f) > 0 &&
-							 * Float.compare(elapse_time, 50000.0f) < 0 &&
-							 * Float.compare(elapse_time, 25000.0f) > 0))
-							 * System.
-							 * out.println("type: "+kernel.getQuery_type()
-							 * +", st: "+org_st+"----"+st
-							 * +", duration and real duration are: "
-							 * +kernel.getDuration()
-							 * +"---"+kernel.getReal_duration
-							 * ()+"; org_batch, batch: "
-							 * +org_batches+"-----"+batches+", left SM: "+left);
-							 */
+	
 							// Mark the time range where the current kernel does
 							// not occupy all the SMs, calculates the number of
 							// SMs used in that range
@@ -1893,8 +1881,8 @@ public class MPSSim {
 			// set the ready time of the next kernel in issuing Queries.
 			issuingQueries.get(kernel.getQuery_type()).setReady_time(
 					kernel.getEnd_time() + kernel.getSlack_time());
-			/*
-			  if(kernel.getQuery_type() == 2)
+//			/*
+			  if(kernel.getQuery_type() == 0)
 			  System.out.println(kernel.getExecution_order()+" : start: "+kernel.getStart_time()+", end: "
 					  +kernel.getEnd_time()+"~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~, duration: " +kernel.getReal_duration()
 					  +", ready: "+issuingQueries.get(kernel.getQuery_type()).getReady_time()); 
@@ -1903,7 +1891,7 @@ public class MPSSim {
 //					  " : start: "+kernel.getStart_time()+", end: "
 //							  +kernel.getEnd_time()+", duration:"+kernel.getReal_duration()
 //					  +", ready: "+issuingQueries.get(kernel.getQuery_type()).getReady_time());
-			 */
+//			 */
 			  
 			/*
 			 * 5. add the finished kernel back to the query's finished kernel
@@ -2377,7 +2365,7 @@ public class MPSSim {
 				BufferedWriter bw = new BufferedWriter(
 						new FileWriter(MPSSim.RESULT_PATH
 								+ finishedQueries.get(i).peek().getQuery_name()
-								+ "-" + n_bg + "-" + bg_name + "-sim.csv", true));
+								+ "-" + n_bg + "-" + bg_name + "-tg-sim.csv", true));
 
 				for (Query finishedQuery : finishedQueries.get(i)) {
 					float real_latency;
@@ -2437,16 +2425,16 @@ public class MPSSim {
 							/ finishedQueries.get(i).size()) + "(ms)");
 		}
 		// if(Detail) {
-		if (true) {
+		if (true) {			
 			// calculate latency of background queries
 			for (int i = targetQueries.size(); i < finishedQueries.size(); i++) {
 				ArrayList<Float> all_latency = new ArrayList<Float>();
 				try {
-					// BufferedWriter bw = new BufferedWriter(new FileWriter(
-					// MPSSim.RESULT_PATH
-					// + "sim-"+finishedQueries.get(i).peek().getQuery_name()
-					// + "-" + n_bg + "-" + i+"-"+bg_name + ".csv"));
-					// bw.write("end_to_end\n");
+					BufferedWriter bg_bw = new BufferedWriter(
+							new FileWriter(MPSSim.RESULT_PATH
+									+ finishedQueries.get(0).peek().getQuery_name()
+									+ "-" + n_bg + "-" + bg_name + "-bg-sim.csv", true));
+					
 					for (Query finishedQuery : finishedQueries.get(i)) {
 						if (finishedQuery.getEnd_time() <= COMPLETE_TIME) {
 							accumulative_latency += finishedQuery.getEnd_time()
@@ -2458,11 +2446,12 @@ public class MPSSim {
 							if (finishedQuery.getEnd_time() > target_endtime) {
 								target_endtime = finishedQuery.getEnd_time();
 							}
+							bg_bw.write(all_latency.get(all_latency.size()-1) + "\n");
 //							 System.out.println("start: "+finishedQuery.getStart_time()+", end: "+finishedQuery.getEnd_time()
 //					 			+", duration: "+(finishedQuery.getEnd_time()-finishedQuery.getStart_time())+", complete: "+COMPLETE_TIME);
 						}
 					}
-					// bw.close();
+					 bg_bw.close();
 				} catch (Exception ex) {
 					System.out
 							.println("Failed to write to the latency.txt, the reason is: "
@@ -2522,7 +2511,7 @@ public class MPSSim {
 		case "dig":
 			return 0.3f;
 		case "imc":
-			return 0.15f + randQuery.nextInt(1);
+			return 0.15f + randQuery.nextInt(2);
 		case "face":
 			return 0.15f;
 		case "pos":
@@ -2740,7 +2729,8 @@ public class MPSSim {
 		case "dig":
 			return 1.0f;
 		case "imc":
-			return 1.1f + randQuery.nextFloat() * 0.1f;
+//			return 1.1f + randQuery.nextFloat() * 0.1f;
+			return 1.0f;
 		case "face":
 			return 1.0f;
 		case "pos":
@@ -2887,6 +2877,7 @@ public class MPSSim {
 		config.setQueryName(target);
 		config.setClientNum(tg_num);
 		n_tg = config.getClientNum();
+		tg_name=config.getQueryName();
 		config.setQueryNum(tg_query_num);
 		targetConfs.add(config);
 		System.out.println("Target QueryName: " + config.getQueryName()

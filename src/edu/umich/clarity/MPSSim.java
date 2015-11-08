@@ -105,6 +105,7 @@ public class MPSSim {
 	private final static boolean MPS_enabled = true;
 	private final static boolean CONSIDER_DIRECTION = true;
 
+	private static float kernel_elapse_time=0.0f;
 	private boolean pcie_transfer = false;
 	/*
 	 * kernel scheduling policy
@@ -186,7 +187,7 @@ public class MPSSim {
 				chosen_query = id;
 				earliest = issuingQueries.get(id).getReady_time();
 			}
-			// System.out.println(issuingQueries.get(id).getQuery_type()+": "+issuingQueries.get(id).getReady_time());
+//			 System.out.println(issuingQueries.get(id).getQuery_type()+": "+issuingQueries.get(id).getReady_time());
 		}
 		// issuingQueries.get(chosen_query).setReady_time(100000000.0f);
 		// System.out.println("\n~~~~~~~~~~~~~~~~~~~~~~~~~~~\n");
@@ -675,17 +676,32 @@ public class MPSSim {
 					 * 7. set the kernel's start time and end time
 					 */
 					issuingQueries.get(chosen_query).setSeqconstraint(true);
-					float org_st = Math.max(elapse_time - overlapping_time,
+					float org_st;
+//					float org_st = Math.max(elapse_time - overlapping_time,
+//							issuingQueries.get(kernel.getQuery_type())
+//									.getReady_time());
+					
+					if(kernel.getWarps()!=0)
+						org_st = Math.max(kernel_elapse_time - overlapping_time,
+								issuingQueries.get(kernel.getQuery_type())
+								.getReady_time());						
+					else org_st = Math.max(elapse_time - overlapping_time,
 							issuingQueries.get(kernel.getQuery_type())
 									.getReady_time());
 
-					// if(Float.compare(kernel.getDuration(), 20) > 0 &&
-					// Float.compare(elapse_time, 50000.0f) < 0 &&
-					// Float.compare(elapse_time, 25000.0f) > 0)
-					// System.out.println("-----ready: "+issuingQueries.get(kernel.getQuery_type()).getReady_time()
-					// +"; elapse: "+elapse_time+", overlapping: "+overlapping_time+", st: "+org_st);
+//					 if(Float.compare(kernel.getDuration(), 20) > 0 &&
+//					 Float.compare(elapse_time, 50000.0f) < 0 &&
+//					 Float.compare(elapse_time, 25000.0f) > 0)
+//					 System.out.println("-----ready: "+issuingQueries.get(kernel.getQuery_type()).getReady_time()
+//					 +"; elapse: "+elapse_time+", overlapping: "+overlapping_time+", st: "+org_st);
 
 					float st = updateStartTime(org_st);
+
+//					 System.out.println("-----ready: "+issuingQueries.get(kernel.getQuery_type()).getReady_time()
+//					 +"; elapse: "+elapse_time+", overlapping: "+overlapping_time+", org_st: "+org_st+", st: "+st);
+
+//					if(kernel.getQuery_type()==2)
+//						System.out.println("ready: "+issuingQueries.get(kernel.getQuery_type()).getReady_time()+", start at: "+st);
 
 					kernel.setStart_time(st);
 					// /*
@@ -708,7 +724,7 @@ public class MPSSim {
 						kernel.setReal_duration(calMemcpyDuration(kernel, st,
 								kernel.getDirection())); // Update the duration
 															// of the kernel
-						// System.out.println(kernel.getExecution_order()+" : "+kernel.getStart_time()+", duration:"+kernel.getDuration()+", client: "+kernel.getQuery_type());
+//						 System.out.println(kernel.getExecution_order()+" : "+kernel.getStart_time()+", duration:"+kernel.getDuration()+", client: "+kernel.getQuery_type());
 					}
 					// */
 
@@ -832,8 +848,13 @@ public class MPSSim {
 					// if(kernel.getQuery_type() == 0)
 					// System.out.println(kernel.getExecution_order()+" : "+kernel.getDuration()+"->"+kernel.getReal_duration());
 
-					kernel.setEnd_time(kernel.getReal_duration() + st
+					if(kernel.getWarps() !=0)
+						kernel.setEnd_time(kernel.getReal_duration() + st
 							+ MPSSim.KERNEL_SLACK);
+					else
+						kernel.setEnd_time(kernel.getReal_duration() + kernel.getStart_time()
+							+ MPSSim.KERNEL_SLACK);
+//					System.out.println("-------start: "+kernel.getStart_time()+" , end: "+kernel.getEnd_time()+" ,st: --------"+st);
 
 					// kernel.setEnd_time(kernel.getDuration() + elapse_time +
 					// MPSSim.KERNEL_SLACK);
@@ -1039,7 +1060,7 @@ public class MPSSim {
 				 */
 				for (Iterator<MemCpy> iterator = active_memcpy_htd.iterator(); iterator.hasNext();) {
 					MemCpy mc = iterator.next();
-					if (Float.compare(mc.getK().getEnd_time(), start_t) <= 0) {
+					if (Float.compare(mc.getK().getEnd_time(), start_t) < 0) {
 					// Remove the current element from the iterator and the list.
 						iterator.remove();
 					}
@@ -1066,6 +1087,7 @@ public class MPSSim {
 //								+ " --> " + mc.getK().getEnd_time() + ", current: " + current_time);
 					}
 				}
+//				System.out.println("UPDATED::::::start: "+start_t+", end: "+end_t+", client, order: "+kernel.getQuery_type()+":"+kernel.getExecution_order());
 //				System.out.println("Active Memcpies ==============================================================================="+active_memcpy_htd);
 
 				if (current.getPinned() != 1) {
@@ -1165,10 +1187,13 @@ public class MPSSim {
 								issuingQueries.get(active_memcpy_htd.get(i).getK().getQuery_type()).getReady_time()) {
 							issuingQueries.get(active_memcpy_htd.get(i).getK().getQuery_type()).
 									setReady_time(active_memcpy_htd.get(i).getK().getEnd_time());
+							if(active_memcpy_htd.get(i).getK().getQuery_type()==2)
+							System.out.println(active_memcpy_htd.get(i).getK().getExecution_order()+": ready at: "+ active_memcpy_htd.get(i).getK().getEnd_time());
 						}
 					}
 
-					ret = start_t - current_time + current.getK().getDuration();
+					ret = current.getK().getDuration();
+//					ret = start_t - current_time + current.getK().getDuration();
 					current.setNew_inst(0);
 					active_memcpy_htd.add(current); // add the current memory copy into the queue
 				}
@@ -1308,7 +1333,7 @@ public class MPSSim {
 						}
 					}
 
-					ret = start_t - current_time + current.getK().getDuration();
+					ret =  current.getK().getDuration();
 					current.setNew_inst(0);
 					active_memcpy_dth.add(current); // add the current memory copy into the queue
 				}
@@ -1454,13 +1479,13 @@ public class MPSSim {
 					}
 				}
 
-				ret = start_t - current_time + current.getK().getDuration();
+				ret = current.getK().getDuration();
 				current.setNew_inst(0);
 				active_memcpy.add(current); // add the current memory copy into the queue
 			}
 		}
 
-		// System.out.println("After*************************************************************************"+active_memcpy);
+//		 System.out.println("After*************************************************************************"+ret);
 
 		return ret;
 	}
@@ -1849,18 +1874,6 @@ public class MPSSim {
 			if (kernel.getOccupancy() == 0) {
 				pcie_transfer = false;
 			}
-			/*
-			 * if(kernel.getQuery_type() == 0)
-			 * System.out.println(kernel.getExecution_order
-			 * ()+" : start: "+kernel
-			 * .getStart_time()+", end: "+kernel.getEnd_time
-			 * ()+"~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~, duration: "
-			 * +kernel.getReal_duration()); // else //
-			 * System.out.println(kernel.
-			 * getQuery_type()+"----"+kernel.getExecution_order
-			 * ()+" : start: "+kernel
-			 * .getStart_time()+", duration:"+kernel.getReal_duration());
-			 */
 
 			// System.out.println(kernel.getQuery_type()+" : "+kernel.getExecution_order());
 			/*
@@ -1880,7 +1893,18 @@ public class MPSSim {
 			// set the ready time of the next kernel in issuing Queries.
 			issuingQueries.get(kernel.getQuery_type()).setReady_time(
 					kernel.getEnd_time() + kernel.getSlack_time());
-
+			/*
+			  if(kernel.getQuery_type() == 2)
+			  System.out.println(kernel.getExecution_order()+" : start: "+kernel.getStart_time()+", end: "
+					  +kernel.getEnd_time()+"~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~, duration: " +kernel.getReal_duration()
+					  +", ready: "+issuingQueries.get(kernel.getQuery_type()).getReady_time()); 
+//			  else //
+//			  System.out.println(kernel.getQuery_type()+"----"+kernel.getExecution_order()+
+//					  " : start: "+kernel.getStart_time()+", end: "
+//							  +kernel.getEnd_time()+", duration:"+kernel.getReal_duration()
+//					  +", ready: "+issuingQueries.get(kernel.getQuery_type()).getReady_time());
+			 */
+			  
 			/*
 			 * 5. add the finished kernel back to the query's finished kernel
 			 * queue
@@ -2143,6 +2167,8 @@ public class MPSSim {
 			// System.out.println("start time, duration, overlapping_time: "+start_time+"----"+kernel.getDuration()
 			// +"---"+overlapping_time+" !! completed is: "+kernel.getQuery_type());
 
+			if(kernel.getWarps() !=0)	kernel_elapse_time = kernel.getEnd_time();
+			
 			enqueueKernel_quan(start_time, overlapping_time, left_sm);
 			// enqueueKernel_quan(kernel.getEnd_time(), overlapping_time);
 		}
@@ -2432,8 +2458,9 @@ public class MPSSim {
 							if (finishedQuery.getEnd_time() > target_endtime) {
 								target_endtime = finishedQuery.getEnd_time();
 							}
+//							 System.out.println("start: "+finishedQuery.getStart_time()+", end: "+finishedQuery.getEnd_time()
+//					 			+", duration: "+(finishedQuery.getEnd_time()-finishedQuery.getStart_time())+", complete: "+COMPLETE_TIME);
 						}
-						// System.out.println("start: "+finishedQuery.getStart_time()+", end: "+finishedQuery.getEnd_time()+", complete: "+COMPLETE_TIME);
 					}
 					// bw.close();
 				} catch (Exception ex) {

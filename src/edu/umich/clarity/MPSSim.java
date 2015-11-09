@@ -1899,7 +1899,7 @@ public class MPSSim {
 			// set the ready time of the next kernel in issuing Queries.
 			issuingQueries.get(kernel.getQuery_type()).setReady_time(
 					kernel.getEnd_time() + kernel.getSlack_time());
-//			/*
+			/*
 			  if(kernel.getQuery_type() == 0)
 			  System.out.println(kernel.getExecution_order()+" : start: "+kernel.getStart_time()+", end: "
 					  +kernel.getEnd_time()+"~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~, duration: " +kernel.getReal_duration()
@@ -1909,7 +1909,7 @@ public class MPSSim {
 //					  " : start: "+kernel.getStart_time()+", end: "
 //							  +kernel.getEnd_time()+", duration:"+kernel.getReal_duration()
 //					  +", ready: "+issuingQueries.get(kernel.getQuery_type()).getReady_time());
-//			 */
+			 */
 			  
 			/*
 			 * 5. add the finished kernel back to the query's finished kernel
@@ -2665,7 +2665,7 @@ private static void read_load(String name, int type) {
 									+ "-" + n_bg + "-" + bg_name + "-bg-sim.csv", true));
 */					
 					for (Query finishedQuery : finishedQueries.get(i)) {
-						if (finishedQuery.getEnd_time() <= COMPLETE_TIME) {
+						if (finishedQuery.getStart_time()>= 20000.0f && finishedQuery.getEnd_time() <= COMPLETE_TIME) {
 							accumulative_latency += finishedQuery.getEnd_time()
 									- finishedQuery.getStart_time();
 							all_latency.add(finishedQuery.getEnd_time()
@@ -3019,7 +3019,7 @@ private static void read_load(String name, int type) {
 		case "dig":
 			return 50;
 		case "imc":
-			return 50;
+			return 30;
 		case "face":
 			return 30;
 		case "pos":

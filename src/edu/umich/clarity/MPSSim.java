@@ -710,10 +710,12 @@ public class MPSSim {
 					if(kernel.getWarps()!=0)
 						org_st = Math.max(kernel_elapse_time,
 								issuingQueries.get(kernel.getQuery_type())
-								.getReady_time());						
-					else org_st = Math.max(elapse_time,
-							issuingQueries.get(kernel.getQuery_type())
-									.getReady_time());
+								.getReady_time());
+					else org_st = issuingQueries.get(kernel.getQuery_type()).getReady_time();	
+					//Memcpy can issue directly (start time will be updated later)
+//					else org_st = Math.max(elapse_time,
+//							issuingQueries.get(kernel.getQuery_type())
+//									.getReady_time());
 					
 //					 if(Float.compare(kernel.getDuration(), 20) > 0 &&
 //					 Float.compare(elapse_time, 50000.0f) < 0 &&
@@ -1973,25 +1975,27 @@ public class MPSSim {
 								.getKernelQueue().isEmpty()) {
 					issuingQueries.get(k.getQuery_type()).setEnd_time(
 							k.getEnd_time());
-					/*
-					 * if(k.getQuery_type() == 0)
-					 * System.out.println(k.getExecution_order
-					 * ()+"------------: start: "+k.getStart_time()
-					 * +", end: "+k.getEnd_time()+
-					 * "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~, duration: "
-					 * +k.getReal_duration()
-					 * +", Run: "+issuingQueries.get(k.getQuery_type
-					 * ()).getStart_time()+ "-->"
-					 * +issuingQueries.get(k.getQuery_type()).getEnd_time()
-					 * +", duration is: "
-					 * +(issuingQueries.get(k.getQuery_type()).
-					 * getEnd_time()-issuingQueries
-					 * .get(k.getQuery_type()).getStart_time())); // else //
-					 * System.out.println(k.getExecution_order()+" : start: "+k.
-					 * getStart_time
-					 * ()+", duration:"+k.getReal_duration()+", client: "
-					 * +k.getQuery_type());
-					 */
+/*						
+					  if(k.getQuery_type() == 0)
+					  System.out.println(k.getExecution_order
+					  ()+"------------: start: "+k.getStart_time()
+					  +", end: "+k.getEnd_time()+
+					  "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~, duration: "
+					  +k.getReal_duration()
+					  +", Run: "+issuingQueries.get(k.getQuery_type
+					  ()).getStart_time()+ "-->"
+					  +issuingQueries.get(k.getQuery_type()).getEnd_time()
+					  +", duration is: "
+					  +(issuingQueries.get(k.getQuery_type()).
+					  getEnd_time()-issuingQueries
+					  .get(k.getQuery_type()).getStart_time())); 
+				  
+				 else //
+					  System.out.println(k.getExecution_order()+" : start: "+k.
+					  getStart_time
+					  ()+", duration:"+k.getReal_duration()+", client: "
+					  +k.getQuery_type());
+*/					 
 				}
 			}
 
@@ -2634,9 +2638,13 @@ private static void read_load(String name, int type) {
 							.equals("dig")) {
 						real_latency = finishedQuery.getEnd_time()
 								- finishedQuery.getStart_time() + 5.0f;
+					} else if (finishedQueries.get(i).peek().getQuery_name()
+							.equals("dig")) {
+						real_latency = finishedQuery.getEnd_time()
+								- finishedQuery.getStart_time() + randQuery.nextFloat()*5.0f;						
 					} else {
 						real_latency = finishedQuery.getEnd_time()
-								- finishedQuery.getStart_time() + randQuery.nextFloat()*5.0f;
+								- finishedQuery.getStart_time();
 						// real_latency =
 						// finishedQuery.getEnd_time()-finishedQuery.getStart_time();
 					}
@@ -2762,7 +2770,7 @@ private static void read_load(String name, int type) {
 		case "asr":
 			return 0.05f + randQuery.nextFloat();
 		case "gmm":
-			return 0.05f;
+			return 0.05f + randQuery.nextFloat();
 		case "stemmer":
 			return 0.15f + randQuery.nextInt(1);
 			// Rodinia~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

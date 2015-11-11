@@ -2636,7 +2636,7 @@ private static void read_load(String name, int type) {
 								- finishedQuery.getStart_time() + 5.0f;
 					} else {
 						real_latency = finishedQuery.getEnd_time()
-								- finishedQuery.getStart_time() + 0.5f;
+								- finishedQuery.getStart_time() + randQuery.nextFloat()*5.0f;
 						// real_latency =
 						// finishedQuery.getEnd_time()-finishedQuery.getStart_time();
 					}

@@ -11,7 +11,7 @@ public class Kernel {
 	private float start_time;
 	private float end_time;
 	private float duration;
-	private int occupancy;
+	private float occupancy;
 	private boolean finished;
 	private int execution_order;
 	private int warps_per_batch;
@@ -72,11 +72,11 @@ public class Kernel {
 		this.duration = duration;
 	}
 
-	public int getOccupancy() {
+	public float getOccupancy() {
 		return occupancy;
 	}
 
-	public void setOccupancy(int occupancy) {
+	public void setOccupancy(float occupancy) {
 		this.occupancy = occupancy;
 	}
 

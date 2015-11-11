@@ -109,6 +109,7 @@ public class MPSSim {
 	private final static boolean CONSIDER_DIRECTION = true;
 
 	private static float kernel_elapse_time=0.0f;
+	private static float kernel_overlapping_time=0.0f;
 	private boolean pcie_transfer = false;
 	/*
 	 * kernel scheduling policy
@@ -270,6 +271,7 @@ public class MPSSim {
 	 *            the target queries to select from
 	 * @return the index of the target query
 	 */
+/*
 	private int OccupancyFirstSchedule(ArrayList<Integer> select_range) {
 		int chosen_query = 0;
 		int max_occupancy = 0;
@@ -283,7 +285,7 @@ public class MPSSim {
 		}
 		return chosen_query;
 	}
-
+*/
 	/**
 	 * Always choose the kernel with least execution time to schedule
 	 * 
@@ -357,10 +359,12 @@ public class MPSSim {
 				} else if (MPSSim.schedulingType
 						.equalsIgnoreCase(MPSSim.PRIORITY_FIRST_SCHEDULE)) {
 					chosen_query = PriorityFirstSchedule(select_range);
-				} else if (MPSSim.schedulingType
-						.equalsIgnoreCase(MPSSim.OCCUPANCY_FIRST_SCHEDULE)) {
-					chosen_query = OccupancyFirstSchedule(select_range);
-				} else if (MPSSim.schedulingType
+				} 
+//				else if (MPSSim.schedulingType
+//						.equalsIgnoreCase(MPSSim.OCCUPANCY_FIRST_SCHEDULE)) {
+//					chosen_query = OccupancyFirstSchedule(select_range);
+//				} 
+				else if (MPSSim.schedulingType
 						.equalsIgnoreCase(MPSSim.FAIRNESS_FIRST_SCHEDULE)) {
 					chosen_query = FairnessFirstSchedule(select_range);
 				} else if (MPSSim.schedulingType
@@ -561,8 +565,8 @@ public class MPSSim {
 			if (Float.compare(k.getNonfull_time(), st) < 0
 					&& Float.compare(k.getEnd_time(), st) > 0) {
 				avail -= k.getSms();
-				// System.out.println("kernel sms is: "+k.getSms()+", from "+
-				// k.getNonfull_time()+" to "+ k.getEnd_time());
+//				 System.out.println("kernel sms is: "+k.getSms()+", from "+
+//				 k.getNonfull_time()+" to "+ k.getEnd_time());
 			}
 		}
 
@@ -574,7 +578,30 @@ public class MPSSim {
 
 		return avail;
 	}
+	
+	private float calEndOverlapping(float st) {
+		float t = 0.0f;
+		for (Kernel k : activeKernel) {
+			if (Float.compare(k.getNonfull_time(), st) < 0
+					&& Float.compare(k.getEnd_time(), st) > 0) {
+				t =  k.getEnd_time();
+			}
+		}
 
+		return t;
+	}
+	
+	private float getOccupancy(float st) {
+		float t = 0.0f;
+		for (Kernel k : activeKernel) {
+			if (Float.compare(k.getNonfull_time(), st) < 0
+					&& Float.compare(k.getEnd_time(), st) > 0) {
+				t =  k.getOccupancy();
+			}
+		}
+
+		return t;
+	}
 	/**
 	 * update the start time of the current kernel
 	 * 
@@ -664,10 +691,12 @@ public class MPSSim {
 			} else if (MPSSim.schedulingType
 					.equalsIgnoreCase(MPSSim.PRIORITY_FIRST_SCHEDULE)) {
 				chosen_query = PriorityFirstSchedule(select_range);
-			} else if (MPSSim.schedulingType
-					.equalsIgnoreCase(MPSSim.OCCUPANCY_FIRST_SCHEDULE)) {
-				chosen_query = OccupancyFirstSchedule(select_range);
-			} else if (MPSSim.schedulingType
+			} 
+//			else if (MPSSim.schedulingType
+//					.equalsIgnoreCase(MPSSim.OCCUPANCY_FIRST_SCHEDULE)) {
+//				chosen_query = OccupancyFirstSchedule(select_range);
+//			} 
+			else if (MPSSim.schedulingType
 					.equalsIgnoreCase(MPSSim.FAIRNESS_FIRST_SCHEDULE)) {
 				chosen_query = FairnessFirstSchedule(select_range);
 			} else if (MPSSim.schedulingType
@@ -717,9 +746,6 @@ public class MPSSim {
 //							issuingQueries.get(kernel.getQuery_type())
 //									.getReady_time());
 					
-//					 if(Float.compare(kernel.getDuration(), 20) > 0 &&
-//					 Float.compare(elapse_time, 50000.0f) < 0 &&
-//					 Float.compare(elapse_time, 25000.0f) > 0)
 //					 System.out.println("*********ready: "+issuingQueries.get(kernel.getQuery_type()).getReady_time()
 //					 +"; elapse: "+elapse_time+", kernel elapse: "+kernel_elapse_time+", overlapping: "+overlapping_time+", st: "+org_st);
 
@@ -793,14 +819,17 @@ public class MPSSim {
 
 						if (kernel.getOccupancy() != 0) {
 							int left = calLeftSM(st);
+							float ot = calEndOverlapping(st)-st;
+							float occu = getOccupancy(st);
 							// int left = 3;
+														
 							overlapped = kernel.getWarps_per_batch() / 15 * left;
 							// overlapped = kernel.getWarps_per_batch()/15 *
 							// left_sm;
 							org_batches = (int) Math.ceil(kernel.getWarps()
 									/ (float) (kernel.getWarps_per_batch()));
 							kernel.setOverlapped_warps(overlapped);
-							// System.out.println("left_sm, cal left_sm: "+left_sm+" , "+calLeftSM(st));
+//							System.out.println("left_sm: "+left+", overlapping is: "+ot+", batch time is: "+batch_time);
 
 							// batches = 1+(int) Math.ceil(
 							// (kernel.getWarps()-overlapped)/(float)(kernel.getWarps_per_batch()));
@@ -814,7 +843,30 @@ public class MPSSim {
 										.ceil(kernel.getWarps()
 												/ (float) (kernel
 														.getWarps_per_batch()));
+							
 ///*							
+							if(Float.compare(ot, kernel.getDuration())>0 && kernel.getOccupancy() <= occu) {
+								float batch_time = kernel.getDuration() / ((int) Math.ceil(kernel.getWarps() / (float) (kernel.getWarps_per_batch())));
+								if(Float.compare(kernel.getWarps() / (kernel.getWarps_per_batch()*1.0f / 15 * left) * batch_time, ot) < 0) {
+									batches = (int) (kernel.getWarps() / (kernel.getWarps_per_batch()*1.0f / 15 * left));
+								}
+								else {
+									batches = (int) (ot / batch_time + (kernel.getWarps() - 
+											(int) Math.ceil(ot / batch_time) * kernel.getWarps_per_batch()/15*left)
+											/ (float) (kernel.getWarps_per_batch()));
+								}
+								if (batches < org_batches)	batches = org_batches;
+							}
+//*/							
+/*							
+							if (Float.compare(ot, kernel.getDuration())>0 && Float.compare(kernel.getDuration(), 5.0f)<0) {
+								batches = (int) (kernel.getWarps() / (kernel.getWarps_per_batch()*1.0f / 15 * left))-1;
+//								System.out.println("new: "+(int) (ot / batch_time + (kernel.getWarps() - (int) Math.ceil(ot / batch_time) * kernel.getWarps_per_batch()/15*left)
+//										/ (float) (kernel.getWarps_per_batch()))+",,, old: "+batches);
+
+							}
+*/
+/*							
 ///////////////////////////To be considered////////////////////////////////////////							
 							if(org_batches == 1 && batches == 2)								
 								kernel.setReal_duration(kernel.getDuration()
@@ -822,7 +874,7 @@ public class MPSSim {
 									* microDelays.get(kernel.getQuery_type()));
 ///////////////////////////////////////////////////////////////////////////////////
 							else 
-//*/
+*/
 							// batches = (int)
 							// Math.ceil(kernel.getWarps()/(float)(kernel.getWarps_per_batch()));
 							kernel.setReal_duration(kernel.getDuration()
@@ -1976,11 +2028,13 @@ public class MPSSim {
 					issuingQueries.get(k.getQuery_type()).setEnd_time(
 							k.getEnd_time());
 /*						
-					  if(k.getQuery_type() == 0)
+					  if(k.getQuery_type() == 0 && Float.compare(issuingQueries.get(k.getQuery_type()).
+							  getEnd_time()-issuingQueries
+							  .get(k.getQuery_type()).getStart_time(),40.0f) > 0)
 					  System.out.println(k.getExecution_order
 					  ()+"------------: start: "+k.getStart_time()
 					  +", end: "+k.getEnd_time()+
-					  "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~, duration: "
+					  "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!~~~~, duration: "
 					  +k.getReal_duration()
 					  +", Run: "+issuingQueries.get(k.getQuery_type
 					  ()).getStart_time()+ "-->"
@@ -1990,11 +2044,11 @@ public class MPSSim {
 					  getEnd_time()-issuingQueries
 					  .get(k.getQuery_type()).getStart_time())); 
 				  
-				 else //
-					  System.out.println(k.getExecution_order()+" : start: "+k.
-					  getStart_time
-					  ()+", duration:"+k.getReal_duration()+", client: "
-					  +k.getQuery_type());
+//				 else //
+//					  System.out.println(k.getExecution_order()+" : start: "+k.
+//					  getStart_time
+//					  ()+", duration:"+k.getReal_duration()+", client: "
+//					  +k.getQuery_type());
 */					 
 				}
 			}
@@ -2193,7 +2247,10 @@ public class MPSSim {
 			}
 
 
-			if(kernel.getWarps() !=0)	kernel_elapse_time = kernel.getEnd_time()-overlapping_time;
+			if(kernel.getWarps() !=0)	{
+				kernel_elapse_time = kernel.getEnd_time()-overlapping_time;
+				kernel_overlapping_time = overlapping_time;
+			}
 
 //			else {
 //				kernel_elapse_time = start_time + 0.01f;
@@ -2240,7 +2297,8 @@ public class MPSSim {
 				Kernel kernel = new Kernel();
 				kernel.setDuration(new Float(profile[2]).floatValue());
 				kernel.setReal_duration(new Float(profile[2]).floatValue());
-				kernel.setOccupancy(new Integer(profile[5]).intValue());
+//				kernel.setOccupancy(new Integer(profile[5]).intValue());
+				kernel.setOccupancy(new Float(profile[4]).floatValue());
 				kernel.setWarps_per_batch((int) (new Float(profile[4])
 						.floatValue() * 64 * 15));
 				kernel.setWarps(new Integer(profile[3]).intValue());
@@ -2633,18 +2691,18 @@ private static void read_load(String name, int type) {
 					if (finishedQueries.get(i).peek().getQuery_name()
 							.equals("imc")) {
 						real_latency = finishedQuery.getEnd_time()
-								- finishedQuery.getStart_time() + 1.2f;
+								- finishedQuery.getStart_time() + randQuery.nextFloat()*5.0f;
 					} else if (finishedQueries.get(i).peek().getQuery_name()
 							.equals("dig")) {
 						real_latency = finishedQuery.getEnd_time()
-								- finishedQuery.getStart_time() + 5.0f;
+								- finishedQuery.getStart_time() + randQuery.nextFloat()*5.0f;
 					} else if (finishedQueries.get(i).peek().getQuery_name()
 							.equals("dig")) {
 						real_latency = finishedQuery.getEnd_time()
 								- finishedQuery.getStart_time() + randQuery.nextFloat()*5.0f;						
 					} else {
 						real_latency = finishedQuery.getEnd_time()
-								- finishedQuery.getStart_time();
+								- finishedQuery.getStart_time()+randQuery.nextFloat()*2.0f;
 						// real_latency =
 						// finishedQuery.getEnd_time()-finishedQuery.getStart_time();
 					}
@@ -2672,7 +2730,7 @@ private static void read_load(String name, int type) {
 			Collections.sort(all_latency);
 			System.out.println(finishedQueries.get(i).get(0).getQuery_name()+"-"+i+ ", "+ all_latency.size()
 					+ ": 50%-ile latency is: " + all_latency.get(all_latency.size() / 2).floatValue()
-					+ ", 95%-ile latency is: " + all_latency.get(all_latency.size() * 95 / 100).floatValue());
+					+ ", 95%-ile latency is: " + all_latency.get(all_latency.size() * 99 / 100).floatValue());
 			// System.out.println("50%-ile latency is: "+all_latency.get(all_latency.size()/2).floatValue()+", 99%-ile latency is: "+all_latency.get(all_latency.size()*99/100).floatValue());
 			/*
 			 * print out the average latency for target queries

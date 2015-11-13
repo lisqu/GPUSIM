@@ -21,6 +21,7 @@ public class Query {
 	private float ready_time;	//the ready time of the first unexecuted kernel
 	private int query_id;
 	private int load_id;
+	private float overhead;		//overhead caused by memcpies
 	
 	public Query() {
 		this.start_time = 0.0f;
@@ -29,6 +30,7 @@ public class Query {
 		this.seqconstraint = false;
 		this.kernelQueue = new LinkedList<Kernel>();
 		this.finishedKernelQueue = new LinkedList<Kernel>();
+		this.overhead = 0.0f;
 	}
 
 	public String getQuery_name() {
@@ -121,6 +123,14 @@ public class Query {
 
 	public void setLoad_id(int load_id) {
 		this.load_id = load_id;
+	}
+
+	public float getOverhead() {
+		return overhead;
+	}
+
+	public void setOverhead(float overhead) {
+		this.overhead = overhead;
 	}
 
 }

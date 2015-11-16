@@ -711,6 +711,10 @@ public class MPSSim {
 //			System.out.println("chosen_query: "+chosen_query+", ready time is: "+issuingQueries.get(chosen_query).getReady_time());
 			boolean isConstrained = issuingQueries.get(chosen_query)
 					.isSeqconstraint();
+			
+//			 System.out.println("START ready: "+issuingQueries.get(kernel.getQuery_type()).getReady_time()
+//			 +"; elapse: "+elapse_time+", kernel elapse: "+kernel_elapse_time+", overlapping: "+overlapping_time+", select: "+chosen_query);
+
 			// if (!isConstrained
 			// && available_slots - kernel.getOccupancy() >= 0) {
 			if (!isConstrained) {
@@ -751,9 +755,9 @@ public class MPSSim {
 
 					float st = updateStartTime(org_st);
 
-					if(kernel.getQuery_type()==0 && kernel.getOccupancy() !=0)
-					 System.out.println("-----ready: "+issuingQueries.get(kernel.getQuery_type()).getReady_time()
-					 +"; elapse: "+elapse_time+", kernel elapse: "+kernel_elapse_time+", overlapping: "+overlapping_time+", org_st: "+org_st+", st: "+st);
+//					if(kernel.getQuery_type()==0 && kernel.getOccupancy() !=0)
+//					 System.out.println("-----ready: "+issuingQueries.get(kernel.getQuery_type()).getReady_time()
+//					 +"; elapse: "+elapse_time+", kernel elapse: "+kernel_elapse_time+", overlapping: "+overlapping_time+", org_st: "+org_st+", st: "+st);
 
 					kernel.setStart_time(st);
 					// /*
@@ -893,7 +897,8 @@ public class MPSSim {
 							kernel.setReal_duration(kernel.getDuration()
 									* batches / org_batches
 									* microDelays.get(kernel.getQuery_type()));
-	
+//							System.out.println("before-------start: "+kernel.getStart_time()+" , end: "+kernel.getDuration()+" org_batches: "+org_batches);
+
 							// Mark the time range where the current kernel does
 							// not occupy all the SMs, calculates the number of
 							// SMs used in that range
@@ -937,7 +942,7 @@ public class MPSSim {
 					// if(kernel.getQuery_type() == 0)
 					// System.out.println(kernel.getExecution_order()+" : "+kernel.getDuration()+"->"+kernel.getReal_duration());
 
-					if(kernel.getWarps() !=0) {
+					if(kernel.getWarps() != 0) {
 						kernel.setEnd_time(kernel.getReal_duration() + st
 							+ MPSSim.KERNEL_SLACK);
 //						kernel_elapse_time = kernel.getEnd_time();
@@ -1174,10 +1179,9 @@ public class MPSSim {
 						current.getK().setEnd_time(end_t); // update the end_time first, for sorting in the next step
 						if(current.getK().getEnd_time() > issuingQueries.get(current.getK().getQuery_type()).getReady_time())
 							issuingQueries.get(current.getK().getQuery_type())
-									.setReady_time(current.getK().getEnd_time());
-						
-						System.out.println(current.getPinned()+"---Found active pinned memory copies------------"+mc.getK().getStart_time()
-								+ " --> " + mc.getK().getEnd_time() + ", current: " + current_time);
+									.setReady_time(current.getK().getEnd_time());						
+//						System.out.println(current.getPinned()+"---Found active pinned memory copies------------"+mc.getK().getStart_time()
+//								+ " --> " + mc.getK().getEnd_time() + ", current: " + current_time);
 					}
 					
 					else if(Float.compare(mc.getK().getEnd_time(), kernel.getStart_time()+5.0f) > 0) {
@@ -1211,8 +1215,8 @@ public class MPSSim {
 //				if(kernel.getQuery_type()==0) {
 //					System.out.println("UPDATED::::::start: "+start_t+", end: "+end_t+", client, order: "+kernel.getQuery_type()+":"+kernel.getExecution_order());
 //				}	
-				if(kernel.getQuery_type()==0)
-					System.out.println(start_t+"-->"+end_t+"---Active Memcpies ======================================================"+active_memcpy_htd);
+//				if(kernel.getQuery_type()==0)
+//					System.out.println(start_t+"-->"+end_t+"---Active Memcpies ======================================================"+active_memcpy_htd);
 				
 				if (current.getPinned() != 1) {
 					/**
@@ -2137,23 +2141,31 @@ public class MPSSim {
 			// util_percent));
 			available_slots += kernel.getOccupancy();
 
-			// set the ready time of the next kernel in issuing Queries.
-			issuingQueries.get(kernel.getQuery_type()).setReady_time(
-					kernel.getEnd_time() + kernel.getSlack_time());
-//			/*
+			/*
 			  if(kernel.getQuery_type() == 0)
 			  System.out.println(kernel.getExecution_order()+" : start: "+kernel.getStart_time()+", end: "
 					  +kernel.getEnd_time()+"~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~, duration: " +kernel.getReal_duration()
-					  +", ready: "+issuingQueries.get(kernel.getQuery_type()).getReady_time()); 
+//					  +", ready: "+issuingQueries.get(kernel.getQuery_type()).getReady_time()
+					  + ".----delay by: "+(kernel.getStart_time() - issuingQueries.get(kernel.getQuery_type()).getReady_time())); 
 //			  else 
 //			  System.out.println(kernel.getQuery_type()+"----"+kernel.getExecution_order()+
 //					  " : start: "+kernel.getStart_time()+", end: "
 //							  +kernel.getEnd_time()+", duration:"+kernel.getReal_duration()
 //					  +", ready: "+issuingQueries.get(kernel.getQuery_type()).getReady_time()
 //					  +"--- type: "+kernel.getWarps());
+			 */
 
-//			 */
-			  
+				// set the ready time of the next kernel in issuing Queries.
+/*			
+			if(kernel.getQuery_type()==0)
+				issuingQueries.get(kernel.getQuery_type()).setReady_time(
+						kernel.getEnd_time() + kernel.getSlack_time());
+			else
+				issuingQueries.get(kernel.getQuery_type()).setReady_time(
+						kernel.getEnd_time());
+*/			
+			issuingQueries.get(kernel.getQuery_type()).setReady_time(
+					kernel.getEnd_time() + kernel.getSlack_time());
 			/*
 			 * 5. add the finished kernel back to the query's finished kernel
 			 * queue
@@ -2184,8 +2196,8 @@ public class MPSSim {
 				k.setStart_time(issuingQueries.get(kernel.getQuery_type())
 						.getReady_time());
 				k.setEnd_time(k.getStart_time() + k.getDuration());
-				if(kernel.getQuery_type()==0)
-					System.out.println(k.getStart_time()+"-->"+k.getEnd_time());
+//				if(kernel.getQuery_type()==0)
+//					System.out.println(k.getStart_time()+"-->"+k.getEnd_time());
 
 				k.setReal_duration(calMemcpyDuration(k,
 						k.getStart_time(), k.getDirection())); // Update
@@ -2205,7 +2217,7 @@ public class MPSSim {
 								.getKernelQueue().isEmpty()) {
 					issuingQueries.get(k.getQuery_type()).setEnd_time(
 							k.getEnd_time());
-///*						
+/*						
 					  if(k.getQuery_type() == 0 
 //							  && Float.compare(issuingQueries.get(k.getQuery_type()).
 //							  getEnd_time()-issuingQueries
@@ -2229,7 +2241,7 @@ public class MPSSim {
 //					  getStart_time
 //					  ()+", duration:"+k.getReal_duration()+", client: "
 //					  +k.getQuery_type());
-//*/					 
+*/					 
 				}
 			}
 
@@ -2312,8 +2324,7 @@ public class MPSSim {
 							issuingQueries.get(kernel.getQuery_type())
 									.setStart_time(
 											kernel.getEnd_time()
-													+ slacks.get(kernel
-															.getQuery_type()));
+													+ slacks.get(kernel.getQuery_type()));
 						}
 
 					} else {
@@ -2357,15 +2368,16 @@ public class MPSSim {
 											kernel.getEnd_time()
 													+ query_load.get(comingQuery.getLoad_id()).get(comingQuery
 															.getQuery_id())- duration
-													+ slacks.get(kernel.getQuery_type()));
+													+ slacks.get(kernel.getQuery_type())
+															);
 							issuingQueries.get(kernel.getQuery_type())
 									.setStart_time(
 											kernel.getEnd_time()
 													+ query_load.get(comingQuery.getLoad_id()).get(comingQuery
 															.getQuery_id())
 													- duration
-													+ slacks.get(kernel
-															.getQuery_type()));
+													+ slacks.get(kernel.getQuery_type())
+													);
 							// System.out.println("**********end time: "+kernel.getEnd_time()+", duration: "+duration+", start: "+
 							// issuingQueries.get(kernel.getQuery_type()).getStart_time()+", load: "+bg_load.get(comingQuery.getQuery_id()));
 						} else {
@@ -2431,16 +2443,6 @@ public class MPSSim {
 				kernel_elapse_time = kernel.getEnd_time()-overlapping_time;
 				kernel_overlapping_time = overlapping_time;
 			}
-
-//			else {
-//				kernel_elapse_time = start_time + 0.01f;
-//				System.out.println("end time is: "+ kernel.getEnd_time()+"==========elapse time: "+kernel_elapse_time);
-//			}
-			
-			// if(Float.compare(start_time, 50000.0f) < 0 &&
-			// Float.compare(start_time, 25000.0f) > 0)
-			// System.out.println("start time, duration, overlapping_time: "+start_time+"----"+kernel.getDuration()
-			// +"---"+overlapping_time+" !! completed is: "+kernel.getQuery_type());
 
 			enqueueKernel_quan(start_time, overlapping_time, left_sm);
 			// enqueueKernel_quan(kernel.getEnd_time(), overlapping_time);
@@ -2525,8 +2527,8 @@ public class MPSSim {
 	}
 
 	static float tg_st = 22386.0f;
-	static float bg_st[] = { 150.0f, 1143.0f, 2153.0f, 3155.0f, 4148.0f,
-			5154.0f, 6155.0f, 7154.0f };
+	static float bg_st[] = { 0.0f, 33.0f, 33.1f, 92.0f, 92.1f,
+			92.2f, 92.3f, 92.4f };
 
 	public static void main(String[] args) {
 		MPSSim mps_sim = new MPSSim();
@@ -2856,10 +2858,16 @@ private static void read_load(String name, int type) {
 //					+detail_conf_name +"~"+finishedQueries.get(i).get(0).getQuery_name()+"-sim.csv");
 			ArrayList<Float> all_latency = new ArrayList<Float>();
 			try {
-				BufferedWriter bw = new BufferedWriter(
+				BufferedWriter bw;
+				if(MPS_enabled) {
+				bw = new BufferedWriter(
 						new FileWriter(MPSSim.RESULT_PATH
 								+ detail_conf_name +"~"+finishedQueries.get(i).get(0).getQuery_name()+"-sim.csv", true));
-
+				} else {
+					bw = new BufferedWriter(
+							new FileWriter(MPSSim.RESULT_PATH
+									+ detail_conf_name +"~"+finishedQueries.get(i).get(0).getQuery_name()+"-nomps-sim.csv", true));					
+				}
 //				BufferedWriter bw = new BufferedWriter(
 //						new FileWriter(MPSSim.RESULT_PATH
 //								+ finishedQueries.get(i).peek().getQuery_name()
@@ -2888,10 +2896,15 @@ private static void read_load(String name, int type) {
 						real_latency = finishedQuery.getEnd_time()
 								- finishedQuery.getStart_time()
 								+finishedQuery.getOverhead();
+					}  else if (finishedQueries.get(i).peek().getQuery_name()
+							.equals("asr")) {
+						real_latency = finishedQuery.getEnd_time()
+								- finishedQuery.getStart_time()
+								+finishedQuery.getOverhead() + 5.0f;
 					} else if (finishedQueries.get(i).peek().getQuery_name()
 							.equals("face")) {
 						real_latency = finishedQuery.getEnd_time()
-								- finishedQuery.getStart_time()+finishedQuery.getOverhead();						
+								- finishedQuery.getStart_time()+finishedQuery.getOverhead()+randQuery.nextFloat()*60.0f;						
 					} else {
 						real_latency = finishedQuery.getEnd_time()
 								- finishedQuery.getStart_time()+finishedQuery.getOverhead();
@@ -2938,9 +2951,17 @@ private static void read_load(String name, int type) {
 			for (int i = targetQueries.size(); i < finishedQueries.size(); i++) {
 				ArrayList<Float> all_latency = new ArrayList<Float>();
 				try {
-					BufferedWriter bg_bw = new BufferedWriter(
+					BufferedWriter bg_bw;
+					
+					if(MPS_enabled) {
+					bg_bw = new BufferedWriter(
 							new FileWriter(MPSSim.RESULT_PATH
 									+ detail_conf_name +"~"+finishedQueries.get(i).get(0).getQuery_name()+"-sim.csv", true));
+					} else {
+						bg_bw = new BufferedWriter(
+								new FileWriter(MPSSim.RESULT_PATH
+										+ detail_conf_name +"~"+finishedQueries.get(i).get(0).getQuery_name()+"-nomps-sim.csv", true));						
+					}
 /*					
 					BufferedWriter bg_bw = new BufferedWriter(
 							new FileWriter(MPSSim.RESULT_PATH
@@ -3008,7 +3029,7 @@ private static void read_load(String name, int type) {
 		switch (query_name) {
 		// DjiNN and Tonic~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 		case "dig":
-			return 0.1f;
+			return 0.05f+ randQuery.nextFloat();
 		case "imc":
 			return 0.15f + randQuery.nextInt(2);
 		case "face":
@@ -3019,9 +3040,9 @@ private static void read_load(String name, int type) {
 			return randQuery.nextFloat();
 			// Sirius Suite~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 		case "asr":
-			return 0.05f + randQuery.nextFloat();
+			return randQuery.nextFloat();
 		case "gmm":
-			return 0.05f + randQuery.nextFloat();
+			return 0.05f+randQuery.nextFloat();
 		case "stemmer":
 			return 0.15f + randQuery.nextInt(1);
 			// Rodinia~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -3044,7 +3065,7 @@ private static void read_load(String name, int type) {
 		case "kmeans":
 			return randQuery.nextFloat();
 		case "lavaMD":
-			return randQuery.nextFloat();
+			return 0.01f;
 		case "leukocyte":
 			return 0;
 		case "lud":
@@ -3092,7 +3113,7 @@ private static void read_load(String name, int type) {
 			return 8.0f + randQuery.nextFloat() * 2;
 			// Sirius Suite~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 		case "asr":
-			return 1420.0f;
+			return 1350.0f;
 		case "gmm":
 			return 475.0f;
 		case "stemmer":
@@ -3137,7 +3158,7 @@ private static void read_load(String name, int type) {
 		case "pathfinderPIN":
 			return 2900.0f;
 		case "srad":
-			return 290.0f;
+			return 100.0f;
 		case "streamcluster":
 			return 240.0f;
 		default:
@@ -3262,9 +3283,10 @@ private static void read_load(String name, int type) {
 		case "hybridsort":
 			return 1.0f;
 		case "kmeans":
-			return 1.1f+randQuery.nextFloat()*0.1f;
+			return 1.1f+randQuery.nextFloat()*0.05f;
 		case "lavaMD":
-			return 1.0f;
+			return 1.0f+randQuery.nextFloat()*0.1f;
+//			return 1.0f;
 		case "leukocyte":
 			return 1.0f;
 		case "lud":
@@ -3302,7 +3324,7 @@ private static void read_load(String name, int type) {
 		switch (query_name) {
 		// DjiNN and Tonic~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 		case "dig":
-			return 20;
+			return 10;
 		case "imc":
 			return 30;
 		case "face":
@@ -3358,7 +3380,7 @@ private static void read_load(String name, int type) {
 		case "pathfinderPIN":
 			return 50;
 		case "srad":
-			return 20;
+			return 1;
 		case "streamcluster":
 			return 20;
 		default:
@@ -3637,8 +3659,9 @@ private static void read_load(String name, int type) {
 				
 				t_variation = getStartVariation(conf.getQueryName());
 				start_time = random.nextInt(t_variation);
-//				start_points.add(getInitTime(conf.getQueryName())
-				start_points.add(i * 1000.0f + getInitTime(conf.getQueryName())
+//				start_points.add(bg_st[i]);
+				start_points.add(getInitTime(conf.getQueryName())
+//				start_points.add(i * 1000.0f + getInitTime(conf.getQueryName())
 						+ getWarmupTime(conf.getQueryName()) + start_time);				
 
 			}
